@@ -1,0 +1,16 @@
+# config.yaml
+huggingface:
+  model: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+  max_tokens: 2000
+  temperature: 0.1
+
+paths:
+  output_dir: "outputs"
+  processed_dir: "outputs/processed"
+  failed_dir: "outputs/failed"
+  logs_dir: "outputs/logs"
+
+extraction:
+  batch_size: 10
+  retry_attempts: 3
+  timeout: 30

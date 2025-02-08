@@ -1,0 +1,39 @@
+services:
+  neo4j:
+    image: neo4j:latest
+    volumes:
+      - ./storage/logs:/logs
+      - ./storage/config:/config
+      - ./storage/data:/data
+      - ./storage/plugins:/plugins
+      # Optional: Mount custom config
+      #- ./storage/config/neo4j.conf:/conf/neo4j.conf
+    environment:
+      - NEO4J_AUTH_FILE=/run/secrets/neo4j_auth_file
+      # APOC settings
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+      - NEO4J_PLUGINS=["apoc"]
+      # Security settings
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      - NEO4J_dbms_security_procedures_allowlist=apoc.*
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    restart: always
+    secrets:
+      - neo4j_auth_file
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+secrets:
+  neo4j_auth_file:
+    file: ./secrets/neo4j_auth.txt
+
+networks:
+  default:
+    driver: bridge

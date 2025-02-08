@@ -1,0 +1,9 @@
+# .gitignore
+.env
+*.log
+.DS_Store
+
+db/mysql/docker-entrypoint-initdb.d/
+storage/
+secrets/
+outputs/
