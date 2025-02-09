@@ -43,6 +43,58 @@ class DrugNormalizer:
         
         return text.strip()
     
+    def clean_component(self, text: str, field_type: str = 'default') -> str:
+        """清理文本内容，根据字段类型应用不同的清理规则
+        
+        Args:
+            text: 原始文本
+            field_type: 字段类型，可选值：
+                - 'component': 成分相关
+                - 'indication': 适应症相关
+                - 'usage': 用法用量相关
+                - 'default': 默认清理
+                
+        Returns:
+            str: 清理后的文本
+        """
+        if not text:
+            return ""
+            
+        # 基础清理
+        text = self.clean_text(text)
+        
+        ## 通用前缀词
+        # common_prefixes = [
+        #     r'^(本品|药品|该药|此药)',
+        #     r'^(适用于|用于|主要用于|可用于|能够|可以|建议|推荐)',
+        #     r'^(主要|可能|常见|偶见|罕见|其他)',
+        # ]
+        
+        ## 根据字段类型应用特定的清理规则
+        # if field_type == 'component':
+        #     # 成分特有的前缀和说明词
+        #     text = re.sub(r'^(本品|药品|该药)(每片|每粒|每袋|每支)?含', '', text)
+        #     text = re.sub(r'^(组成|成分|配料|辅料|主要成分|赋形剂)(为|包括|含有)?[:：]?', '', text)
+            
+        # elif field_type == 'indication':
+        #     # 适应症特有的前缀和说明词
+        #     text = re.sub(r'^(适应症|适用症|适应证|功能主治)(为|包括|如下)?[:：]?', '', text)
+        #     text = re.sub(r'^(可用于|适用于|用于治疗|主要用于|可用于治疗)[:：]?', '', text)
+            
+        # elif field_type == 'usage':
+        #     # 用法用量特有的前缀和说明词
+        #     text = re.sub(r'^(用法用量|使用方法|服用方法|用药方法)(为|如下)?[:：]?', '', text)
+            
+        ## 应用通用清理规则
+        # for prefix in common_prefixes:
+        #     text = re.sub(prefix, '', text)
+            
+        # 移除冗余的标点符号
+        text = re.sub(r'^[,，、:：]+', '', text)
+        text = re.sub(r'[,，、]$', '', text)
+        
+        return text.strip()
+    
     def standardize_name(self, name: str) -> str:
         """标准化药品名称"""
         if not name:
@@ -158,19 +210,46 @@ class DrugNormalizer:
             '批准文号': 'approval_number'
         }
         
-        def clean_component(text: str) -> str:
-            """清理成分文本"""
-            text = self.clean_text(text)
-            # 移除常见前缀
-            text = re.sub(r'^(本品|药品|该药)(每片|每粒|每袋|每支)?含', '', text)
-            # 移除常见说明词
-            text = re.sub(r'(组成|成分|配料)[:：]?', '', text)
-            return text.strip()
-        
+        def process_text_field(content: str) -> List[str]:
+            """处理文本字段，保持语义完整性
+            
+            Args:
+                content: 原始文本内容
+                
+            Returns:
+                List[str]: 处理后的文本列表
+            """
+            if not content or not content.strip():
+                return []
+
+            # 使用clean_component进行初步清理，根据字段类型
+            content = self.clean_component(content, field_type='indication')
+            
+            # 按句号、分号分割，这些标点通常表示完整的语义单元
+            items = re.split(r'[。；;]', content)
+            
+            # 清理每个片段，保持内部的逗号等标点
+            cleaned_items = []
+            for item in items:
+                item = item.strip()
+                if not item:
+                    continue
+                    
+                # 使用clean_component处理每个子项
+                item = self.clean_component(item, field_type='indication')
+                
+                # 验证文本有效性
+                # 1. 长度检查：至少包含2个字符
+                # 2. 内容检查：至少包含一个汉字
+                if len(item) >= 2 and re.search(r'[\u4e00-\u9fff]', item):
+                    cleaned_items.append(item)
+            
+            return cleaned_items
+
         def process_components(content: str) -> None:
             """处理成分内容，保持语义完整性"""
-            # 清理HTML和特殊字符
-            content = self.clean_text(content)
+            # 使用clean_component进行初步清理
+            content = self.clean_component(content, field_type='component')
             
             # 按句号、分号分割
             items = re.split(r'[。；;]', content)
@@ -181,41 +260,11 @@ class DrugNormalizer:
                 if not item:
                     continue
                 
-                # 移除常见前缀
-                item = re.sub(r'^(本品|药品|该药)(每片|每粒|每袋|每支)?含', '', item)
-                # 移除常见说明词
-                item = re.sub(r'^(组成|成分|配料|辅料|主要成分|赋形剂)(为|包括|含有)?[:：]?', '', item)
-                # 如果以逗号结尾，去掉
-                item = re.sub(r'[,，、]$', '', item)
+                # 使用clean_component处理每个子项
+                item = self.clean_component(item, field_type='component')
                 
                 if item.strip():
                     result['components'].append(item.strip())
-        
-        def process_text_field(content: str) -> List[str]:
-            """处理文本字段，保持语义完整性
-            
-            Args:
-                content: 原始文本内容
-                
-            Returns:
-                List[str]: 处理后的文本列表
-            """
-            # 清理HTML和特殊字符
-            content = self.clean_text(content)
-            
-            # 按句号、分号分割，这些标点通常表示完整的语义单元
-            items = re.split(r'[。；;]', content)
-            
-            # 清理每个片段，保持内部的逗号等标点
-            cleaned_items = []
-            for item in items:
-                item = item.strip()
-                if item:
-                    # 如果以逗号结尾，去掉
-                    item = re.sub(r'[,，、]$', '', item)
-                    cleaned_items.append(item)
-            
-            return cleaned_items
         
         for detail in details:
             if not isinstance(detail, dict):
@@ -246,7 +295,7 @@ class DrugNormalizer:
                     result[field].extend(items)
                 else:
                     # 其他字段直接使用清理后的内容
-                    result[field] = self.clean_text(content)
+                    result[field] = self.clean_component(content, field_type='default')
         
         # 对所有列表字段去重，但保持顺序
         for field in ['components', 'indications', 'contraindications', 
