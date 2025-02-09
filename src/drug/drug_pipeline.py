@@ -17,9 +17,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 import logging
 from typing import Dict, List, Any
 
-from .drug_indexer import DrugIndexer
-from .drug_normalizer import DrugNormalizer
-from ..utils import get_elastic_client
+from src.drug.drug_indexer import DrugIndexer
+from src.drug.drug_normalizer import DrugNormalizer
+from src.drug.tag_preprocessor import TagPreprocessor
+from src.utils import get_elastic_client
 
 logger = logging.getLogger(__name__)
 

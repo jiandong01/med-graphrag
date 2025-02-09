@@ -1,10 +1,11 @@
+import os
 import logging
+import hashlib
 from typing import Dict, List, Any
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
-import hashlib
-import argparse
-import os
+
+from src.utils import get_elastic_client
 
 logger = logging.getLogger(__name__)
 
@@ -216,10 +217,7 @@ def main():
     
     # Initialize indexer
     indexer = IndicationIndexer(
-        es=Elasticsearch(
-            hosts=['http://localhost:9200'],
-            basic_auth=('elastic', os.getenv('ELASTIC_PASSWORD', 'changeme'))
-        )
+        es=get_elastic_client()
     )
     
     if args.clear:

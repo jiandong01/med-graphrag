@@ -1,16 +1,13 @@
 import os
 import logging
+from typing import Dict, List, Any
 from elasticsearch import Elasticsearch
-from typing import List, Dict, Any
-from tqdm import tqdm
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+from src.utils import get_elastic_client
+
 logger = logging.getLogger(__name__)
 
-class DrugKnowledgeGraph:
+class DrugIndexer:
     """药品知识图谱索引器"""
     
     def __init__(self, es_config: Dict[str, Any]):
@@ -190,16 +187,16 @@ def main():
     
     try:
         # 创建知识图谱对象
-        kg = DrugKnowledgeGraph(es_config)
+        indexer = DrugIndexer(es_config)
         
         # Clear all indices if requested
         if args.clear:
             print("\nClearing all existing indices...")
-            kg.clear_all_indices()
+            indexer.clear_all_indices()
         
         # 创建索引
         print("\nCreating indices...")
-        kg.create_indices()
+        indexer.create_indices()
         
         # 连接MySQL数据库
         print("\nConnecting to MySQL database...")
@@ -283,7 +280,7 @@ def main():
                 except Exception as e:
                     print(f"Error processing drug {drug['id']}: {str(e)}")
             
-            kg.index_drugs(drugs)
+            indexer.index_drugs(drugs)
             
             print("\nKnowledge graph creation completed successfully!")
             

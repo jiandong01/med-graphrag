@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import argparse
 from pathlib import Path
@@ -7,10 +8,10 @@ from typing import Dict, List, Any
 from tqdm import tqdm
 from dotenv import load_dotenv
 
-from .indication_indexer import IndicationIndexer
-from .indication_normalizer import IndicationNormalizer
-from .indication_extractor import IndicationEntityExtractor
-from ..utils import get_elastic_client
+from src.indication.indication_indexer import IndicationIndexer
+from src.indication.indication_normalizer import IndicationNormalizer
+from src.indication.indication_extractor import IndicationEntityExtractor
+from src.utils import get_elastic_client
 
 logger = logging.getLogger(__name__)
 
