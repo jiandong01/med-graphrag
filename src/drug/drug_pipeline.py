@@ -14,9 +14,14 @@ import sys
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from src.normalizers.drug_normalizer import DrugNormalizer
-from src.normalizers.tag_normalizer import TagPreprocessor
-from src.indexers.drug_indexer import DrugKnowledgeGraph
+import logging
+from typing import Dict, List, Any
+
+from .drug_indexer import DrugIndexer
+from .drug_normalizer import DrugNormalizer
+from ..utils import get_elastic_client
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -42,7 +47,7 @@ class DrugPipeline:
             'hosts': ['http://localhost:9200'],
             'basic_auth': ('elastic', os.getenv('ELASTIC_PASSWORD', 'changeme'))
         }
-        self.indexer = DrugKnowledgeGraph(es_config=es_config)
+        self.indexer = DrugIndexer(es_config=es_config)
         
         # MySQL配置
         self.mysql_url = (

@@ -4,6 +4,7 @@ from pathlib import Path
 import logging
 from dotenv import load_dotenv
 import os
+from elasticsearch import Elasticsearch
 
 def load_env():
     """加载环境变量"""
@@ -60,3 +61,39 @@ def ensure_directories(config: dict):
     """确保所需目录存在"""
     for dir_name in ['output_dir', 'processed_dir', 'failed_dir', 'logs_dir']:
         Path(config['paths'][dir_name]).mkdir(parents=True, exist_ok=True)
+
+def get_elastic_client() -> Elasticsearch:
+    """获取 Elasticsearch 客户端实例"""
+    load_dotenv()
+    return Elasticsearch(
+        hosts=['http://localhost:9200'],
+        basic_auth=('elastic', os.getenv('ELASTIC_PASSWORD', 'changeme'))
+    )
+
+def setup_logging_v2(name: str, log_dir: str = 'logs'):
+    """设置日志"""
+    import logging
+    from pathlib import Path
+    from datetime import datetime
+    
+    # 创建日志目录
+    log_dir = Path(log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 配置日志格式
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    # 创建日志文件处理器
+    log_file = log_dir / f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(formatter)
+    
+    # 创建错误日志文件处理器
+    error_file = log_dir / f"{name}_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    error_handler = logging.FileHandler(error_file)
+    error_handler.setFormatter(formatter)
+    error_handler.setLevel(logging.ERROR)
+    
+    return file_handler, error_handler

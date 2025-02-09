@@ -3,21 +3,22 @@ import logging
 import argparse
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, List, Any
 from tqdm import tqdm
 from dotenv import load_dotenv
 
-from elasticsearch import Elasticsearch
-from src.normalizers.indication_normalizer import IndicationNormalizer
-from src.indexers.indication_indexer import IndicationIndexer
-from src.extractors.indication_extractor import IndicationEntityExtractor
+from .indication_indexer import IndicationIndexer
+from .indication_normalizer import IndicationNormalizer
+from .indication_extractor import IndicationEntityExtractor
+from ..utils import get_elastic_client
+
+logger = logging.getLogger(__name__)
 
 # 加载环境变量
 load_dotenv()
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class IndicationPipeline:
     """适应症处理管道"""
@@ -38,10 +39,7 @@ class IndicationPipeline:
         logger.addHandler(self.error_handler)
         
         # 初始化 ES 客户端
-        self.es = Elasticsearch(
-            hosts=['http://localhost:9200'],
-            basic_auth=('elastic', os.getenv('ELASTIC_PASSWORD', 'changeme'))
-        )
+        self.es = get_elastic_client()
         
         # 初始化组件
         self.normalizer = IndicationNormalizer()
