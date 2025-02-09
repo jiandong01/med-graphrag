@@ -1,106 +1,87 @@
-import re
-import logging
-from typing import List, Dict, Any
-
-logger = logging.getLogger(__name__)
+from typing import Dict, Tuple
 
 class TagPreprocessor:
-    """标签预处理器"""
-    
     def __init__(self):
-        """初始化标签预处理器"""
-        # 标签替换规则
-        self.replace_rules = {
-            r'\s+': ' ',  # 合并多个空格
-            r'[,.，。、]': ' ',  # 替换标点为空格
-            r'\(.*?\)': '',  # 移除括号及其内容
-            r'［.*?］': '',  # 移除中文方括号及其内容
-            r'\[.*?\]': '',  # 移除英文方括号及其内容
+        # Define tag mappings for normalization
+        self.tag_mappings = {
+            # 成分相关
+            '成份': 'components',
+            '成分': 'components',
+            '主要成份': 'components',
+            '有效成分': 'components',
+            
+            # 适应症相关
+            '适应症': 'indications',
+            '适用症': 'indications',
+            '适应证': 'indications',
+            '功能主治': 'indications',
+            
+            # 禁忌相关
+            '禁忌': 'contraindications',
+            '禁忌症': 'contraindications',
+            
+            # 不良反应相关
+            '不良反应': 'adverse_reactions',
+            '副作用': 'adverse_reactions',
+            
+            # 注意事项相关
+            '注意事项': 'precautions',
+            '警告': 'precautions',
+            
+            # 相互作用相关
+            '药物相互作用': 'interactions',
+            '相互作用': 'interactions',
+            
+            # 用法用量相关
+            '用法用量': 'usage',
+            '用药方法': 'usage',
+            '给药方式': 'usage',
+            
+            # 批准文号相关
+            '批准文号': 'approval_number'
         }
         
-        # 标签分割模式
-        self.split_pattern = r'[;；]\s*'
-        
-        # 标签过滤规则
-        self.filter_rules = [
-            lambda x: len(x) >= 2,  # 标签长度至少为2
-            lambda x: not x.isdigit(),  # 不是纯数字
-            lambda x: not re.match(r'^[a-zA-Z0-9]+$', x),  # 不是纯英文或数字
-        ]
+        # Define main categories that should be included in the primary mapping
+        self.main_categories = {
+            'components', 'indications', 'contraindications',
+            'adverse_reactions', 'precautions', 'interactions', 'usage',
+            'approval_number'
+        }
     
-    def clean_tag(self, tag: str) -> str:
-        """清理单个标签
+    def process_tag(self, original_tag: str) -> Tuple[str, bool]:
+        """
+        Process a tag and return its normalized form
         
         Args:
-            tag: 原始标签
+            original_tag: The original tag from the database
             
         Returns:
-            str: 清理后的标签
+            Tuple[str, bool]: (normalized_tag, is_main_category)
         """
-        # 去除首尾空白
-        tag = tag.strip()
+        # Clean the tag
+        cleaned_tag = original_tag.strip()
         
-        # 应用替换规则
-        for pattern, repl in self.replace_rules.items():
-            tag = re.sub(pattern, repl, tag)
+        # Get normalized tag
+        normalized_tag = self.tag_mappings.get(cleaned_tag, cleaned_tag)
         
-        return tag.strip()
+        # Check if it's a main category
+        is_main = normalized_tag in self.main_categories
+        
+        return normalized_tag, is_main
     
-    def filter_tag(self, tag: str) -> bool:
-        """过滤标签
-        
-        Args:
-            tag: 待过滤的标签
-            
-        Returns:
-            bool: 是否保留该标签
+    def get_mapping_properties(self) -> Dict:
         """
-        return all(rule(tag) for rule in self.filter_rules)
-    
-    def process_tags(self, tags: List[str]) -> List[str]:
-        """处理标签列表
+        Get Elasticsearch mapping properties
         
-        Args:
-            tags: 原始标签列表
-            
         Returns:
-            List[str]: 处理后的标签列表
+            Dict: Elasticsearch mapping properties for the drug index
         """
-        processed_tags = set()
-        
-        for tag in tags:
-            # 分割复合标签
-            sub_tags = re.split(self.split_pattern, tag)
-            
-            # 处理每个子标签
-            for sub_tag in sub_tags:
-                # 清理标签
-                cleaned_tag = self.clean_tag(sub_tag)
-                
-                # 过滤标签
-                if cleaned_tag and self.filter_tag(cleaned_tag):
-                    processed_tags.add(cleaned_tag)
-        
-        return list(processed_tags)
-    
-    def process_drug_data(self, drug_data: Dict[str, Any]) -> Dict[str, Any]:
-        """处理药品数据中的标签
-        
-        Args:
-            drug_data: 药品数据
-            
-        Returns:
-            Dict[str, Any]: 处理后的药品数据
-        """
-        # 获取原始标签
-        tags = drug_data.get('tags', [])
-        if not tags:
-            return drug_data
-        
-        # 处理标签
-        processed_tags = self.process_tags(tags)
-        
-        # 更新药品数据
-        drug_data['tags'] = processed_tags
-        
-        return drug_data
+        return {
+            "details": {
+                "type": "nested",
+                "properties": {
+                    "tag": {"type": "keyword"},
+                    "content": {"type": "text"}
+                }
+            }
+        }

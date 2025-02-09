@@ -2,6 +2,7 @@ import os
 import logging
 from typing import Dict, List, Any
 from elasticsearch import Elasticsearch
+from tqdm import tqdm
 
 from src.utils import get_elastic_client
 
