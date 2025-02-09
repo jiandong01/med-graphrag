@@ -22,84 +22,108 @@ A sophisticated medical knowledge graph system that leverages Large Language Mod
   - Comprehensive error handling and logging
   - Optimized search indices
 
-## 🏗️ System Architecture
+## 🏗️ Project Structure
 
-### Components
+```
+src/
+├── core/            # Core functionality and shared components
+├── indexers/        # Elasticsearch indexing related modules
+│   └── drug_indexer.py         # Drug information indexing
+├── extractors/      # Entity extraction modules
+│   └── indication_extractor.py # Indication entity extraction
+├── normalizers/     # Data normalization modules
+│   ├── indication_normalizer.py # Indication text normalization
+│   └── tag_normalizer.py       # Drug tag normalization
+├── analysis/        # Analysis and statistics scripts
+│   └── indication_stats.py     # Indication statistics analysis
+└── utils/           # Utility functions and helpers
+    └── common.py              # Common utility functions
+```
 
-#### Tag Normalization (`tag_normalizer.py`)
-- Standardizes drug information tags
-- Maintains consistent terminology
-- Provides Elasticsearch mapping properties
-- Handles various Chinese medical terms
+## 🔧 Components
 
-#### Drug Entity Extraction (`drug_entity_extractor.py`)
-- LLM-based entity extraction
+### Indexers
+#### Drug Indexer (`indexers/drug_indexer.py`)
+- Creates and manages Elasticsearch indices for drug information
+- Processes and indexes drug data
+- Provides search functionality
+- Handles complex queries
+
+### Extractors
+#### Indication Extractor (`extractors/indication_extractor.py`)
+- LLM-based indication entity extraction
 - Structured JSON output
 - Batch processing capabilities
 - Temporal tracking of extractions
 
-#### Database Management (`database_manager.py`)
-- Handles database operations
-- Manages data persistence
-- Supports multiple database types
-- Robust error handling
+### Normalizers
+#### Indication Normalizer (`normalizers/indication_normalizer.py`)
+- Standardizes indication text
+- Categorizes diseases
+- Maintains consistent terminology
+- Handles Chinese medical terms
 
-#### Elasticsearch Integration (`elasticsearch_indexer.py`)
-- Creates and manages Elasticsearch indices
-- Processes drug information
-- Provides search functionality
-- Handles complex queries
+#### Tag Normalizer (`normalizers/tag_normalizer.py`)
+- Standardizes drug information tags
+- Provides Elasticsearch mapping properties
+- Ensures data consistency
+- Supports multiple tag types
 
-#### Utility Functions (`utils.py`)
-- Configuration management
-- Logging setup
-- Environment variable handling
-- Common helper functions
+### Analysis
+#### Indication Statistics (`analysis/indication_stats.py`)
+- Analyzes indication frequency
+- Generates statistical reports
+- Exports data to CSV
+- Provides insights into disease categories
+
+### Utils
+#### Common Utilities (`utils/common.py`)
+- Shared utility functions
+- Helper methods
+- Common data structures
+- Reusable components
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 - Python 3.8+
-- Elasticsearch 8.x
-- PostgreSQL
-- Hugging Face API key
+- Elasticsearch 7.x
+- HuggingFace API key
+- MySQL database
+
+### Environment Variables
+Create a `.env` file with:
+```
+ELASTIC_PASSWORD=your_elastic_password
+HF_API_KEY=your_huggingface_api_key
+MYSQL_USER=your_mysql_user
+MYSQL_PASSWORD=your_mysql_password
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_DB=your_database_name
+```
 
 ### Installation
 1. Clone the repository
-2. Install dependencies:
+2. Install dependencies: `pip install -r requirements.txt`
+3. Set up environment variables
+4. Run the indexer: `python src/indexers/drug_indexer.py`
+
+## 📊 Usage Examples
+
+### Index Drug Data
 ```bash
-pip install -r requirements.txt
+python src/indexers/drug_indexer.py --clear
 ```
 
-### Configuration
-1. Set up environment variables:
-   ```
-   HF_API_KEY=your_hugging_face_api_key
-   ELASTIC_PASSWORD=your_elastic_password
-   POSTGRES_DB=your_db_name
-   POSTGRES_USER=your_db_user
-   POSTGRES_PASSWORD=your_db_password
-   ```
-
-2. Configure Elasticsearch:
-   - Default URL: http://localhost:9200
-   - Default credentials: elastic/changeme
-
-### Usage
-
-1. Process and normalize drug information:
+### Extract Indications
 ```bash
-python src/tag_normalizer.py
+python src/extractors/indication_extractor.py --batch-size 100
 ```
 
-2. Extract drug entities:
+### Generate Statistics
 ```bash
-python src/drug_entity_extractor.py
-```
-
-3. Index data in Elasticsearch:
-```bash
-python src/elasticsearch_indexer.py
+python src/analysis/indication_stats.py --stats --export stats.csv
 ```
 
 ## 📊 Data Model

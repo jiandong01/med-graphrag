@@ -9,7 +9,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 import re
 import argparse
-from tag_normalizer import TagPreprocessor
+from normalizers.tag_normalizer import TagPreprocessor
 
 # Load environment variables
 load_dotenv()
@@ -185,7 +185,6 @@ class DrugKnowledgeGraph:
                 'manufacturer': first_drug['manufacturer'],
                 'create_time': first_drug['create_time'].isoformat() if pd.notnull(first_drug['create_time']) else None,
                 'category_id': first_drug['parent_id'],
-                'details': processed_details.get('details', []),
                 'components': processed_details.get('components'),
                 'indications': processed_details.get('indications'),
                 'contraindications': processed_details.get('contraindications'),
@@ -193,7 +192,8 @@ class DrugKnowledgeGraph:
                 'precautions': processed_details.get('precautions'),
                 'interactions': processed_details.get('interactions'),
                 'usage': processed_details.get('usage'),
-                'approval_number': processed_details.get('approval_number')
+                'approval_number': processed_details.get('approval_number'),
+                'details': processed_details.get('details', [])
             }
             
             print("\nSample processed document structure:")
@@ -214,7 +214,6 @@ class DrugKnowledgeGraph:
                     'manufacturer': drug['manufacturer'],
                     'create_time': drug['create_time'].isoformat() if pd.notnull(drug['create_time']) else None,
                     'category_id': drug['parent_id'],
-                    'details': processed_details.get('details', []),
                     'components': processed_details.get('components'),
                     'indications': processed_details.get('indications'),
                     'contraindications': processed_details.get('contraindications'),
@@ -222,7 +221,8 @@ class DrugKnowledgeGraph:
                     'precautions': processed_details.get('precautions'),
                     'interactions': processed_details.get('interactions'),
                     'usage': processed_details.get('usage'),
-                    'approval_number': processed_details.get('approval_number')
+                    'approval_number': processed_details.get('approval_number'),
+                    'details': processed_details.get('details', [])
                 }
                 
                 # 索引文档

@@ -2,13 +2,14 @@ from huggingface_hub import InferenceClient
 import json
 import logging
 import argparse
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Set
 from datetime import datetime
 from pathlib import Path
 from elasticsearch import Elasticsearch
 import os
 from dotenv import load_dotenv
 from tqdm import tqdm
+from normalizers.indication_normalizer import IndicationNormalizer
 
 # Load environment variables
 load_dotenv()
@@ -27,15 +28,13 @@ class IndicationEntityExtractor:
             api_key=api_key
         )
         self.es = Elasticsearch(**es_config)
+        self.normalizer = IndicationNormalizer()
         
-    def create_extraction_prompt(self, text: str) -> list:
+    def create_extraction_prompt(self, indications: List[str]) -> list:
         """创建实体抽取的prompt"""
-        # 限制文本长度，避免超出模型上下文窗口
-        max_text_length = 4000  # 根据模型的具体限制调整
-        if len(text) > max_text_length:
-            text = text[:max_text_length] + "..."
-            logger.warning(f"Text was truncated to {max_text_length} characters")
-            
+        # 将多个适应症组合成一个文本，每个适应症单独一行
+        text = "\n".join(indications)
+        
         system_message = {
             "role": "system",
             "content": """你是一个医学文本分析专家。请从医药说明书中抽取适应症相关实体，直接输出JSON格式，不要包含任何其他内容。
@@ -78,11 +77,11 @@ JSON格式如下：
         
         return [system_message, user_message]
 
-    def extract_entities(self, text: str) -> Optional[Dict]:
+    def extract_entities(self, indications: List[str]) -> Optional[Dict]:
         """调用API进行实体抽取"""
         try:
-            messages = self.create_extraction_prompt(text)
-            logger.info(f"Sending request to API with text length: {len(text)}")
+            messages = self.create_extraction_prompt(indications)
+            logger.info(f"Sending request to API with {len(indications)} indications")
             logger.debug(f"Request messages: {json.dumps(messages, ensure_ascii=False)}")
             
             completion = self.client.chat.completions.create(
@@ -210,6 +209,79 @@ JSON格式如下：
             logger.error(f"Error fetching drugs: {str(e)}")
             return []
 
+    def process_batch(self, drugs: List[Dict]) -> None:
+        """处理一批药品数据"""
+        success_count = 0
+        error_count = 0
+        
+        # 收集所有药品的适应症文本
+        all_indications_texts = [drug['indications'] for drug in drugs]
+        
+        # 使用规范化器分析所有适应症
+        logger.info("Analyzing and normalizing indications...")
+        analysis = self.normalizer.analyze_indications(all_indications_texts)
+        logger.info(f"Found {analysis['total_unique']} unique indications across {len(analysis['categories'])} categories")
+        
+        # 为每个标准化的适应症调用一次API
+        logger.info("Extracting entities for unique indications...")
+        std_indications = list(analysis['standardization_map'].keys())
+        result = self.extract_entities(std_indications)
+        
+        if not result:
+            logger.error("Failed to extract entities from standardized indications")
+            return
+        
+        # 为每个药品创建文档
+        for drug in tqdm(drugs, desc="Processing drugs"):
+            try:
+                # 获取该药品的原始适应症
+                original_indications = self.normalizer.split_indications(drug['indications'])
+                
+                # 获取标准化的适应症
+                drug_std_indications = set()
+                for ind in original_indications:
+                    std_name = self.normalizer.standardize_name(ind)
+                    drug_std_indications.add(std_name)
+                
+                # 从API结果中筛选出该药品的实体
+                drug_entities = []
+                for entity in result['entities']:
+                    if entity['text'] in drug_std_indications:
+                        drug_entities.append(entity)
+                
+                # 构建文档
+                doc = {
+                    'drug_id': drug['id'],
+                    'drug_name': drug['name'],
+                    'approval_number': drug.get('approval_number'),
+                    'entities': drug_entities,
+                    'relations': result.get('relations', []),
+                    'metadata': {
+                        'original_text': drug['indications'],
+                        'standardized_indications': list(drug_std_indications),
+                        'extraction_time': datetime.now().isoformat(),
+                        'confidence_score': result['metadata'].get('confidence_score', 0.95)
+                    }
+                }
+                
+                # 索引文档
+                try:
+                    response = self.es.index(index='indication_entities', document=doc)
+                    if response['result'] not in ['created', 'updated']:
+                        logger.error(f"Failed to index document for drug {drug['id']}: {response}")
+                        error_count += 1
+                    else:
+                        success_count += 1
+                except Exception as e:
+                    logger.error(f"Error indexing document for drug {drug['id']}: {str(e)}")
+                    error_count += 1
+                
+            except Exception as e:
+                logger.error(f"Error processing drug {drug['id']}: {str(e)}")
+                error_count += 1
+        
+        logger.info(f"Batch processing completed. Success: {success_count}, Error: {error_count}")
+
     def create_indices(self):
         """创建适应症实体索引"""
         indication_entities_index = {
@@ -280,6 +352,9 @@ JSON格式如下：
                     "metadata": {
                         "properties": {
                             "original_text": {"type": "text"},
+                            "standardized_indications": {
+                                "type": "keyword"
+                            },
                             "processing_notes": {"type": "text"},
                             "confidence_score": {"type": "float"},
                             "extraction_time": {"type": "date"}
@@ -308,114 +383,66 @@ JSON格式如下：
             if self.es.indices.exists(index="indication_entities"):
                 self.es.indices.delete(index="indication_entities")
                 logger.info("Cleared 'indication_entities' index.")
+            self.create_indices()
         except Exception as e:
             logger.error(f"Error clearing indices: {str(e)}")
-            raise
-
-    def store_entities(self, drug_id: str, drug_name: str, entities: Dict):
-        """存储抽取的实体到新的索引中"""
-        try:
-            doc = {
-                "drug_id": drug_id,
-                "drug_name": drug_name,
-                "entities": entities
-            }
-            self.es.index(index="indication_entities", document=doc)
-        except Exception as e:
-            logger.error(f"Failed to store entities for drug {drug_id}: {str(e)}")
-
-    def process_batch(self, output_dir: str = "outputs", clear_existing: bool = False):
-        """批量处理ES中的适应症并保存结果"""
-        Path(output_dir).mkdir(exist_ok=True)
-        
-        # 如果需要，清空现有索引
-        if clear_existing:
-            logger.info("Clearing existing indices...")
-            self.clear_indices()
-        
-        # 创建新的索引
-        self.create_indices()
-        
-        # 获取所有带有适应症的药品
-        drugs = self.fetch_drugs_with_indications()
-        logger.info(f"Found {len(drugs)} drugs with indications")
-        
-        success_count = 0
-        error_count = 0
-        
-        for drug in tqdm(drugs):
-            try:
-                logger.info(f"Processing drug: {drug['name']} (ID: {drug['id']})")
-                indications_text = drug['indications']
-                logger.info(f"Indications text length: {len(indications_text)}")
-                
-                # 抽取实体
-                result = self.extract_entities(indications_text)
-                if not result:
-                    logger.warning(f"No entities extracted for drug {drug['id']}")
-                    error_count += 1
-                    continue
-                
-                # 构建文档
-                doc = {
-                    'drug_id': drug['id'],
-                    'drug_name': drug['name'],
-                    'approval_number': drug.get('approval_number'),
-                    'entities': result.get('entities', []),
-                    'relations': result.get('relations', []),
-                    'metadata': result.get('metadata', {})
-                }
-                
-                # 索引文档
-                try:
-                    response = self.es.index(index='indication_entities', document=doc)
-                    if response['result'] not in ['created', 'updated']:
-                        logger.error(f"Failed to index document for drug {drug['id']}: {response}")
-                        error_count += 1
-                    else:
-                        success_count += 1
-                except Exception as e:
-                    logger.error(f"Error indexing document for drug {drug['id']}: {str(e)}")
-                    error_count += 1
-                
-            except Exception as e:
-                logger.error(f"Error processing drug {drug['id']}: {str(e)}")
-                error_count += 1
-        
-        logger.info(f"Batch processing completed. Success: {success_count}, Error: {error_count}")
 
 def main():
     """Main function to extract indication entities"""
-    # 解析命令行参数
-    parser = argparse.ArgumentParser(description='Extract and store indication entities from drug descriptions')
-    parser.add_argument('--clear', action='store_true', help='Clear existing indication_entities index before processing')
-    parser.add_argument('--output-dir', type=str, default='outputs', help='Directory to store output files')
+    parser = argparse.ArgumentParser(description='Extract indication entities from drug descriptions')
+    parser.add_argument('--clear', action='store_true', help='Clear existing indices before processing')
+    parser.add_argument('--batch-size', type=int, default=100, help='Batch size for processing')
+    parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO',
+                      help='Set the logging level')
+    parser.add_argument('--stats', action='store_true', help='Show indication statistics')
+    parser.add_argument('--top-n', type=int, default=10, help='Show top N indications in statistics')
+    parser.add_argument('--export-stats', type=str, help='Export statistics to CSV file')
     args = parser.parse_args()
     
-    # 初始化ES配置
-    es_config = {
-        "hosts": ["http://localhost:9200"],
-        "basic_auth": ("elastic", os.getenv("ELASTIC_PASSWORD", "changeme"))
-    }
+    # Set logging level
+    logging.getLogger().setLevel(getattr(logging, args.log_level))
     
-    try:
-        # 创建实体抽取器
-        extractor = IndicationEntityExtractor(
-            api_key=os.getenv("HF_API_KEY"),
-            es_config=es_config
-        )
+    # Initialize extractor
+    extractor = IndicationEntityExtractor(
+        api_key=os.getenv('HF_API_KEY'),
+        es_config={
+            'hosts': ['http://localhost:9200'],
+            'basic_auth': ('elastic', os.getenv('ELASTIC_PASSWORD', 'changeme'))
+        }
+    )
+    
+    if args.clear:
+        logger.info("Clearing existing indices...")
+        extractor.clear_indices()
+    
+    # Fetch and process drugs
+    drugs = extractor.fetch_drugs_with_indications(args.batch_size)
+    if drugs:
+        # 如果需要显示统计信息
+        if args.stats or args.export_stats:
+            logger.info("Analyzing indications...")
+            all_indications = [drug['indications'] for drug in drugs]
+            
+            # 打印统计信息
+            if args.stats:
+                extractor.normalizer.print_value_counts(
+                    all_indications,
+                    top_n=args.top_n,
+                    show_details=True
+                )
+            
+            # 导出统计信息
+            if args.export_stats:
+                logger.info(f"Exporting statistics to {args.export_stats}")
+                extractor.normalizer.export_value_counts(
+                    all_indications,
+                    output_file=args.export_stats
+                )
         
-        # 处理数据
-        extractor.process_batch(
-            output_dir=args.output_dir,
-            clear_existing=args.clear
-        )
-        
-        print("\nIndication entity extraction completed successfully!")
-        
-    except Exception as e:
-        print(f"\nError: {str(e)}")
-        raise
+        # 处理实体抽取
+        extractor.process_batch(drugs)
+    else:
+        logger.warning("No drugs found with indications")
 
 if __name__ == "__main__":
     main()
