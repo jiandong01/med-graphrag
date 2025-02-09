@@ -1,317 +1,180 @@
-from elasticsearch import Elasticsearch
-from datetime import datetime
-from typing import List, Dict, Any
-import json
-from tqdm import tqdm
 import os
-from dotenv import load_dotenv
-import pandas as pd
-from sqlalchemy import create_engine, text
-import re
-import argparse
-from normalizers.tag_normalizer import TagPreprocessor
+import logging
+from elasticsearch import Elasticsearch
+from typing import List, Dict, Any
+from tqdm import tqdm
 
-# Load environment variables
-load_dotenv()
-
-# Configure MySQL URL with proper environment variable names
-MYSQL_URL = f"mysql+mysqlconnector://{os.getenv('MYSQL_USER')}:{os.getenv('MYSQL_PASSWORD')}@{os.getenv('MYSQL_HOST', 'localhost')}:{os.getenv('MYSQL_PORT', '3306')}/{os.getenv('MYSQL_DB')}"
-
-def parse_chinese_date(date_str: str) -> str:
-    """Convert Chinese date format to ISO format"""
-    if not date_str or not isinstance(date_str, str):
-        return None
-        
-    # Extract year, month, day using regex
-    pattern = r'(\d{4})年(\d{2})月(\d{2})日'
-    match = re.match(pattern, date_str)
-    if match:
-        year, month, day = match.groups()
-        try:
-            return f"{year}-{month}-{day}"
-        except ValueError:
-            return None
-    return None
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 class DrugKnowledgeGraph:
+    """药品知识图谱索引器"""
+    
     def __init__(self, es_config: Dict[str, Any]):
-        """初始化ES客户端"""
-        self.es = Elasticsearch(**es_config)
-        self.tag_processor = TagPreprocessor()
+        """初始化ES客户端
         
-    def clear_all_indices(self):
-        """Clear application indices while preserving system indices"""
-        try:
-            # List of indices we want to manage
-            app_indices = ['drugs']
-            
-            for index in app_indices:
-                if self.es.indices.exists(index=index):
-                    print(f"Deleting index: {index}")
-                    self.es.indices.delete(index=index, ignore=[404])
-            print("Application indices cleared successfully.")
-        except Exception as e:
-            print(f"Error clearing indices: {str(e)}")
-            raise
+        Args:
+            es_config: ES配置，包含hosts和basic_auth
+        """
+        self.es = Elasticsearch(**es_config)
+        self.drug_index = "drugs"
     
     def create_indices(self):
-        """创建必要的索引"""
-        # 1. 药品索引
-        drug_index = {
-            "settings": {
-                "analysis": {
-                    "analyzer": {
-                        "drug_analyzer": {
-                            "type": "custom",
-                            "tokenizer": "standard",
-                            "filter": [
-                                "lowercase",
-                                "stop",
-                                "trim"
-                            ]
-                        }
+        """创建所需的索引"""
+        logger.info("Creating indices...")
+        
+        # 药品索引设置
+        drug_settings = {
+            "analysis": {
+                "analyzer": {
+                    "text_analyzer": {
+                        "type": "custom",
+                        "tokenizer": "standard",
+                        "filter": ["lowercase", "stop"],
+                        "char_filter": ["html_strip"]
                     }
                 }
-            },
-            "mappings": {
-                "properties": {
-                    "id": {"type": "keyword"},
-                    "name": {
-                        "type": "text",
-                        "analyzer": "drug_analyzer",
-                        "fields": {
-                            "raw": {"type": "keyword"}
-                        }
-                    },
-                    "spec": {"type": "text"},
-                    "manufacturer": {"type": "keyword"},
-                    "create_time": {"type": "date"},
-                    "category_id": {"type": "keyword"},
-                    "approval_number": {"type": "keyword"},
-                    "details": {
-                        "type": "nested",
-                        "properties": {
-                            "tag": {"type": "keyword"},
-                            "content": {"type": "text"}
-                        }
-                    },
-                    "components": {
-                        "type": "nested",
-                        "properties": {
-                            "name": {"type": "text", "analyzer": "drug_analyzer"},
-                            "content": {"type": "text"}
-                        }
-                    },
-                    "indications": {
-                        "type": "text",
-                        "analyzer": "drug_analyzer",
-                        "fields": {
-                            "raw": {"type": "keyword"}
-                        }
-                    },
-                    "contraindications": {"type": "text", "analyzer": "drug_analyzer"},
-                    "adverse_reactions": {"type": "text", "analyzer": "drug_analyzer"},
-                    "precautions": {"type": "text", "analyzer": "drug_analyzer"},
-                    "interactions": {"type": "text", "analyzer": "drug_analyzer"},
-                    "usage": {"type": "text", "analyzer": "drug_analyzer"}
+            }
+        }
+        
+        # 药品索引映射
+        drug_mapping = {
+            "properties": {
+                "id": {"type": "keyword"},
+                "name": {
+                    "type": "text",
+                    "analyzer": "text_analyzer",
+                    "fields": {
+                        "keyword": {"type": "keyword"}
+                    }
+                },
+                "spec": {"type": "text"},
+                "create_time": {"type": "date"},
+                "components": {
+                    "type": "text",
+                    "analyzer": "text_analyzer",
+                    "fields": {
+                        "keyword": {"type": "keyword"}
+                    }
+                },
+                "indications": {
+                    "type": "text",
+                    "analyzer": "text_analyzer",
+                    "fields": {
+                        "keyword": {"type": "keyword"}
+                    }
+                },
+                "contraindications": {
+                    "type": "text",
+                    "analyzer": "text_analyzer",
+                    "fields": {
+                        "keyword": {"type": "keyword"}
+                    }
+                },
+                "adverse_reactions": {
+                    "type": "text",
+                    "analyzer": "text_analyzer",
+                    "fields": {
+                        "keyword": {"type": "keyword"}
+                    }
+                },
+                "precautions": {
+                    "type": "text",
+                    "analyzer": "text_analyzer",
+                    "fields": {
+                        "keyword": {"type": "keyword"}
+                    }
+                },
+                "interactions": {
+                    "type": "text",
+                    "analyzer": "text_analyzer",
+                    "fields": {
+                        "keyword": {"type": "keyword"}
+                    }
+                },
+                "usage": {"type": "text"},
+                "approval_number": {"type": "keyword"},
+                "details": {
+                    "type": "nested",
+                    "properties": {
+                        "tag": {"type": "keyword"},
+                        "content": {"type": "text"}
+                    }
                 }
             }
         }
         
-        self.es.indices.create(index="drugs", body=drug_index)
-        print("Created 'drugs' index with updated mappings.")
-
-    def _process_drug_details(self, details_df) -> Dict:
-        """处理药品详情"""
-        result = {
-            'details': []  # 存储所有原始详细信息
-        }
-        
-        if details_df.empty:
-            return result
-            
-        # Process each detail type
-        for _, detail in details_df.iterrows():
-            content = detail['tcontent']
-            tag = detail['tag']
-            
-            if not content or not isinstance(content, str):
-                continue
-                
-            # Store original detail
-            result['details'].append({
-                'tag': tag,
-                'content': content.strip()
-            })
-            
-            # Get normalized tag and check if it's a main category
-            normalized_tag, is_main = self.tag_processor.process_tag(tag)
-            
-            # Process main category tags for analysis
-            if is_main:
-                if normalized_tag == 'components':
-                    # Parse components into structured format
-                    components = []
-                    component_matches = re.finditer(r'(.+?)[:：]\s*(.+?)(?=\n|$)', content)
-                    for match in component_matches:
-                        components.append({
-                            'name': match.group(1).strip(),
-                            'content': match.group(2).strip()
-                        })
-                    if components:
-                        result[normalized_tag] = components
-                else:
-                    # Store other main category fields as text
-                    result[normalized_tag] = content.strip()
-        
-        return result
-
-    def process_drugs(self, drugs_df, drug_details_df):
-        """处理药品数据"""
-        print("\nProcessing drugs...")
-        failed_docs = []
-        
-        # Show a sample of processed document
-        if len(drugs_df) > 0:
-            print("\nProcessing first document as sample...")
-            first_drug = drugs_df.iloc[0]
-            details = drug_details_df[drug_details_df['id'] == first_drug['id']]
-            processed_details = self._process_drug_details(details) if not details.empty else {}
-            
-            sample_doc = {
-                'id': first_drug['id'],
-                'name': first_drug['name'],
-                'spec': first_drug['spec'],
-                'manufacturer': first_drug['manufacturer'],
-                'create_time': first_drug['create_time'].isoformat() if pd.notnull(first_drug['create_time']) else None,
-                'category_id': first_drug['parent_id'],
-                'components': processed_details.get('components'),
-                'indications': processed_details.get('indications'),
-                'contraindications': processed_details.get('contraindications'),
-                'adverse_reactions': processed_details.get('adverse_reactions'),
-                'precautions': processed_details.get('precautions'),
-                'interactions': processed_details.get('interactions'),
-                'usage': processed_details.get('usage'),
-                'approval_number': processed_details.get('approval_number'),
-                'details': processed_details.get('details', [])
-            }
-            
-            print("\nSample processed document structure:")
-            print(json.dumps(sample_doc, ensure_ascii=False, indent=2))
-            print("\nContinuing with full processing...")
-        
-        for _, drug in tqdm(drugs_df.iterrows(), total=len(drugs_df)):
-            try:
-                # 处理药品详情
-                details = drug_details_df[drug_details_df['id'] == drug['id']]
-                processed_details = self._process_drug_details(details) if not details.empty else {}
-                
-                # 构建文档
-                doc = {
-                    'id': drug['id'],
-                    'name': drug['name'],
-                    'spec': drug['spec'],
-                    'manufacturer': drug['manufacturer'],
-                    'create_time': drug['create_time'].isoformat() if pd.notnull(drug['create_time']) else None,
-                    'category_id': drug['parent_id'],
-                    'components': processed_details.get('components'),
-                    'indications': processed_details.get('indications'),
-                    'contraindications': processed_details.get('contraindications'),
-                    'adverse_reactions': processed_details.get('adverse_reactions'),
-                    'precautions': processed_details.get('precautions'),
-                    'interactions': processed_details.get('interactions'),
-                    'usage': processed_details.get('usage'),
-                    'approval_number': processed_details.get('approval_number'),
-                    'details': processed_details.get('details', [])
-                }
-                
-                # 索引文档
-                try:
-                    response = self.es.index(index='drugs', document=doc)
-                    if response['result'] not in ['created', 'updated']:
-                        failed_docs.append({
-                            'id': drug['id'],
-                            'error': f"Unexpected result: {response['result']}"
-                        })
-                except Exception as e:
-                    failed_docs.append({
-                        'id': drug['id'],
-                        'error': str(e)
-                    })
-            except Exception as e:
-                failed_docs.append({
-                    'id': drug['id'],
-                    'error': str(e)
-                })
-        
-        if failed_docs:
-            print("\nFailed to process the following documents:")
-            for doc in failed_docs:
-                print(f"ID: {doc['id']}, Error: {doc['error']}")
-        else:
-            print("\nAll documents processed successfully!")
-
-    def search_drugs(self, query: str, fields: List[str] = None) -> Dict:
-        """搜索药品"""
-        search_body = {
-            "query": {
-                "multi_match": {
-                    "query": query,
-                    "fields": fields or [
-                        "name^3",
-                        "details.tag^3",
-                        "details.content^2",
-                        "indications^2",
-                        "components.name",
-                        "contraindications",
-                        "adverse_reactions",
-                        "precautions",
-                        "interactions",
-                        "usage"
-                    ],
-                    "type": "best_fields",
-                    "tie_breaker": 0.3
-                }
-            },
-            "highlight": {
-                "fields": {
-                    "*": {}
-                }
-            }
-        }
-        
-        return self.es.search(index="drugs", body=search_body)
+        logger.info("Creating drug index...")
+        self.es.indices.create(
+            index=self.drug_index,
+            body={"settings": drug_settings, "mappings": drug_mapping},
+            ignore=400  # 忽略已存在的索引错误
+        )
+        logger.info(f"Created index: {self.drug_index}")
     
-    def get_similar_drugs(self, drug_id: str) -> Dict:
-        """获取相似药品"""
-        # 先获取目标药品信息
-        drug = self.es.get(index="drugs", id=drug_id)
+    def clear_all_indices(self):
+        """清空所有索引"""
+        logger.info("Clearing all indices...")
+        if self.es.indices.exists(index=self.drug_index):
+            self.es.indices.delete(index=self.drug_index)
+            logger.info(f"Deleted index: {self.drug_index}")
+    
+    def index_drug(self, drug: Dict):
+        """索引单个药品
         
-        # 构建相似性查询
-        search_body = {
-            "query": {
-                "bool": {
-                    "must": [
-                        {
-                            "more_like_this": {
-                                "fields": ["indications"],
-                                "like": drug['_source']['indications'],
-                                "min_term_freq": 1,
-                                "max_query_terms": 12
-                            }
-                        }
-                    ],
-                    "filter": [
-                        {"term": {"category_id": drug['_source']['category_id']}}
-                    ],
-                    "must_not": [
-                        {"term": {"_id": drug_id}}
-                    ]
-                }
-            }
-        }
+        Args:
+            drug: 药品数据
+        """
+        try:
+            self.es.index(index=self.drug_index, id=drug['id'], document=drug)
+        except Exception as e:
+            logger.error(f"Error indexing drug {drug['id']}: {str(e)}")
+            raise
+    
+    def index_drugs(self, drugs: List[Dict]):
+        """索引药品数据
         
-        return self.es.search(index="drugs", body=search_body)
+        Args:
+            drugs: 处理后的药品列表
+        """
+        logger.info("Indexing drugs...")
+        
+        # 批量索引
+        batch_size = 500  # 增加批量大小以减少请求次数
+        total_batches = (len(drugs) + batch_size - 1) // batch_size
+        
+        # 使用tqdm显示总体进度
+        with tqdm(total=len(drugs), desc="Indexing drugs") as pbar:
+            for i in range(0, len(drugs), batch_size):
+                batch = drugs[i:i + batch_size]
+                operations = []
+                
+                for drug in batch:
+                    operations.extend([
+                        {"index": {"_index": self.drug_index, "_id": drug["id"]}},
+                        drug
+                    ])
+                
+                if operations:
+                    try:
+                        # 使用bulk API批量索引
+                        response = self.es.bulk(operations=operations, refresh=True)
+                        if response.get('errors'):
+                            # 记录失败的文档
+                            for item in response['items']:
+                                if item['index'].get('error'):
+                                    logger.error(f"Error indexing document {item['index']['_id']}: {item['index']['error']}")
+                    except Exception as e:
+                        logger.error(f"Error in batch indexing: {str(e)}")
+                        raise
+                
+                # 更新进度条
+                pbar.update(len(batch))
+        
+        logger.info(f"Successfully indexed {len(drugs)} drugs")
 
 def main():
     """Main function to create the knowledge graph"""
@@ -375,7 +238,52 @@ def main():
             print(f"  Loaded {len(drug_details_df)} drug details")
             
             # 处理数据
-            kg.process_drugs(drugs_df, drug_details_df)
+            drugs = []
+            for _, drug in tqdm(drugs_df.iterrows(), total=len(drugs_df)):
+                try:
+                    # 处理药品详情
+                    details = drug_details_df[drug_details_df['id'] == drug['id']]
+                    processed_details = {}
+                    
+                    if not details.empty:
+                        # Process each detail type
+                        for _, detail in details.iterrows():
+                            content = detail['tcontent']
+                            tag = detail['tag']
+                            
+                            if not content or not isinstance(content, str):
+                                continue
+                            
+                            # Store original detail
+                            processed_details.setdefault('details', []).append({
+                                'tag': tag,
+                                'content': content.strip()
+                            })
+                    
+                    # 构建文档
+                    doc = {
+                        'id': drug['id'],
+                        'name': drug['name'],
+                        'spec': drug['spec'],
+                        'manufacturer': drug['manufacturer'],
+                        'create_time': drug['create_time'].isoformat() if pd.notnull(drug['create_time']) else None,
+                        'category_id': drug['parent_id'],
+                        'components': [],
+                        'indications': '',
+                        'contraindications': '',
+                        'adverse_reactions': '',
+                        'precautions': '',
+                        'interactions': '',
+                        'usage': '',
+                        'approval_number': '',
+                        'details': processed_details.get('details', [])
+                    }
+                    
+                    drugs.append(doc)
+                except Exception as e:
+                    print(f"Error processing drug {drug['id']}: {str(e)}")
+            
+            kg.index_drugs(drugs)
             
             print("\nKnowledge graph creation completed successfully!")
             
