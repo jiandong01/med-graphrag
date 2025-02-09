@@ -2,204 +2,202 @@ import os
 import logging
 import argparse
 from pathlib import Path
-from typing import List, Dict
-import hashlib
-import json
 from datetime import datetime
-import sys
-
-# 添加项目根目录到Python路径
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
-from src.analysis.indication_stats import get_indication_stats
-from src.normalizers.indication_normalizer import IndicationNormalizer
-from src.extractors.indication_extractor import IndicationEntityExtractor
-from src.indexers.indication_indexer import IndicationIndexer
-from elasticsearch import Elasticsearch
+from typing import Dict, Any, List
+from tqdm import tqdm
 from dotenv import load_dotenv
 
-# Load environment variables
+from elasticsearch import Elasticsearch
+from src.normalizers.indication_normalizer import IndicationNormalizer
+from src.indexers.indication_indexer import IndicationIndexer
+from src.extractors.indication_extractor import IndicationEntityExtractor
+
+# 加载环境变量
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# 配置日志
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class IndicationPipeline:
     """适应症处理管道"""
     
-    def __init__(self):
-        """初始化管道组件"""
-        # 初始化ES客户端
-        es_config = {
-            'hosts': ['http://localhost:9200'],
-            'basic_auth': ('elastic', os.getenv('ELASTIC_PASSWORD', 'changeme'))
-        }
-        self.es = Elasticsearch(**es_config)
+    def __init__(self, output_dir: str):
+        """初始化处理管道
         
-        # 初始化各个组件
+        Args:
+            output_dir: 输出目录路径
+        """
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 初始化错误日志
+        self.error_log = self.output_dir / 'errors.log'
+        self.error_handler = logging.FileHandler(self.error_log)
+        self.error_handler.setLevel(logging.ERROR)
+        logger.addHandler(self.error_handler)
+        
+        # 初始化 ES 客户端
+        self.es = Elasticsearch(
+            hosts=['http://localhost:9200'],
+            basic_auth=('elastic', os.getenv('ELASTIC_PASSWORD', 'changeme'))
+        )
+        
+        # 初始化组件
         self.normalizer = IndicationNormalizer()
+        self.indexer = IndicationIndexer(es=self.es)
         self.extractor = IndicationEntityExtractor(
             api_key=os.getenv('HF_API_KEY'),
-            es_config=es_config
-        )
-        self.indexer = IndicationIndexer(es_config=es_config)
-    
-    def generate_indication_id(self, indication: str) -> str:
-        """生成适应症ID
-        
-        Args:
-            indication: 适应症文本
-            
-        Returns:
-            str: 适应症ID
-        """
-        return hashlib.md5(indication.encode()).hexdigest()
-    
-    def process_raw_indications(self) -> List[Dict]:
-        """处理原始适应症数据
-        
-        Returns:
-            List[Dict]: 处理后的适应症列表
-        """
-        logger.info("Getting raw indications from drugs index...")
-        stats = get_indication_stats(self.es)
-        
-        processed_indications = []
-        for name, info in stats['counts'].items():
-            # 标准化名称
-            normalized_name = self.normalizer.standardize_name(name)
-            if not normalized_name:
-                continue
-                
-            # 获取类别
-            category = self.normalizer.get_category(normalized_name)
-            
-            # 构建适应症对象
-            indication = {
-                'id': self.generate_indication_id(normalized_name),
-                'name': name,
-                'normalized_name': normalized_name,
-                'category': category,
-                'source_drugs': [],  # 将在后续步骤填充
-                'entities': [],      # 将由LLM抽取
-                'create_time': datetime.now().isoformat()
-            }
-            
-            processed_indications.append(indication)
-            
-        logger.info(f"Processed {len(processed_indications)} raw indications")
-        return processed_indications
-    
-    def extract_entities(self, indications: List[Dict]) -> List[Dict]:
-        """使用LLM抽取实体
-        
-        Args:
-            indications: 适应症列表
-            
-        Returns:
-            List[Dict]: 添加了实体信息的适应症列表
-        """
-        logger.info("Extracting entities using LLM...")
-        for indication in indications:
-            # 抽取实体
-            entities = self.extractor.extract_entities([indication['normalized_name']])
-            if entities:
-                indication['entities'] = entities
-        
-        return indications
-    
-    def add_source_drugs(self, indications: List[Dict]):
-        """添加来源药品信息
-        
-        Args:
-            indications: 适应症列表
-        """
-        logger.info("Adding source drug information...")
-        
-        # 获取所有药品
-        response = self.es.search(
-            index='drugs',
-            body={
-                'query': {'match_all': {}},
-                '_source': ['id', 'name', 'indications'],
-                'size': 10000
+            es_config={
+                'hosts': ['http://localhost:9200'],
+                'basic_auth': ('elastic', os.getenv('ELASTIC_PASSWORD', 'changeme'))
             }
         )
-        
-        # 构建适应症到药品的映射
-        indication_to_drugs = {}
-        for hit in response['hits']['hits']:
-            drug = hit['_source']
-            if 'indications' in drug:
-                for indication in drug['indications']:
-                    normalized = self.normalizer.standardize_name(indication)
-                    if normalized:
-                        if normalized not in indication_to_drugs:
-                            indication_to_drugs[normalized] = []
-                        indication_to_drugs[normalized].append({
-                            'drug_id': drug['id'],
-                            'drug_name': drug['name']
-                        })
-        
-        # 添加来源药品信息
-        for indication in indications:
-            if indication['normalized_name'] in indication_to_drugs:
-                indication['source_drugs'] = indication_to_drugs[indication['normalized_name']]
     
-    def run(self, output_dir: str = None):
-        """运行完整的处理管道
+    def fetch_indications(self) -> List[Dict[str, Any]]:
+        """从 ES 获取适应症数据
         
-        Args:
-            output_dir: 输出目录，用于保存中间结果
+        Returns:
+            List[Dict[str, Any]]: 适应症数据列表
         """
         try:
-            # 1. 处理原始适应症
-            indications = self.process_raw_indications()
+            # 从 drugs 索引中获取所有药品数据
+            response = self.es.search(
+                index='drugs',
+                body={
+                    'query': {'match_all': {}},
+                    '_source': ['id', 'name', 'indications'],
+                    'size': 10000  # 根据实际数据量调整
+                }
+            )
             
-            if output_dir:
-                # 保存中间结果
-                output_path = Path(output_dir)
-                output_path.mkdir(parents=True, exist_ok=True)
-                with open(output_path / 'raw_indications.json', 'w', encoding='utf-8') as f:
-                    json.dump(indications, f, ensure_ascii=False, indent=2)
+            # 组织数据结构
+            indications = []
+            for hit in response['hits']['hits']:
+                source = hit['_source']
+                if 'indications' in source and source['indications']:
+                    indications.append({
+                        'id': source.get('id'),
+                        'name': source.get('name'),
+                        'indications': source['indications']
+                    })
             
-            # 2. 抽取实体
-            indications = self.extract_entities(indications)
-            
-            if output_dir:
-                with open(output_path / 'indications_with_entities.json', 'w', encoding='utf-8') as f:
-                    json.dump(indications, f, ensure_ascii=False, indent=2)
-            
-            # 3. 添加来源药品信息
-            self.add_source_drugs(indications)
-            
-            if output_dir:
-                with open(output_path / 'final_indications.json', 'w', encoding='utf-8') as f:
-                    json.dump(indications, f, ensure_ascii=False, indent=2)
-            
-            # 4. 索引数据
-            logger.info("Indexing processed indications...")
-            self.indexer.clear_indices()
-            self.indexer.create_indices()
-            self.indexer.index_indications(indications)
-            
-            logger.info("Pipeline completed successfully")
+            logger.info(f"Retrieved {len(indications)} drugs with indications from Elasticsearch")
+            return indications
             
         except Exception as e:
-            logger.error(f"Error in pipeline: {str(e)}")
-            raise
+            logger.error(f"Error fetching indications from Elasticsearch: {str(e)}")
+            return []
+    
+    def process_indications(self, indications: List[Dict[str, Any]]) -> Dict[str, int]:
+        """处理适应症数据
+        
+        Args:
+            indications: 原始适应症数据列表
+            
+        Returns:
+            Dict[str, int]: 处理统计信息
+        """
+        stats = {
+            'total': len(indications),
+            'processed': 0,
+            'indexed': 0,
+            'errors': 0
+        }
+        
+        # 使用tqdm显示处理进度
+        for drug in tqdm(indications, desc="Processing indications"):
+            try:
+                # 获取适应症列表
+                indication_texts = drug.get('indications', [])
+                if not indication_texts:
+                    logger.warning(f"No indications found for drug: {drug.get('name', 'Unknown')} ({drug.get('id', 'Unknown')})")
+                    continue
+                
+                # 清理和规范化文本
+                cleaned_texts = []
+                for text in indication_texts:
+                    cleaned = self.normalizer.clean_text(text)
+                    if cleaned:
+                        cleaned_texts.extend(self.normalizer.split_into_sentences(cleaned))
+                
+                if not cleaned_texts:
+                    continue
+                
+                # 使用 LLM 抽取实体
+                try:
+                    entities_data = self.extractor.extract_entities(cleaned_texts)
+                    if not entities_data:
+                        logger.warning(f"No entities extracted for drug: {drug.get('name', 'Unknown')}")
+                        continue
+                        
+                    # 确保返回的是字典格式
+                    if not isinstance(entities_data, dict):
+                        try:
+                            # 尝试解析 JSON 字符串
+                            import json
+                            entities_data = json.loads(entities_data)
+                        except:
+                            logger.error(f"Invalid entities data format for drug {drug.get('name', 'Unknown')}")
+                            continue
+                    
+                    # 添加原始文本到元数据
+                    if 'metadata' not in entities_data:
+                        entities_data['metadata'] = {}
+                    entities_data['metadata']['original_text'] = ' '.join(cleaned_texts)
+                    
+                    # 索引实体
+                    index_stats = self.indexer.index_entities(entities_data, drug.get('id'))
+                    stats['indexed'] += index_stats['success']
+                    stats['errors'] += index_stats['failed']
+                    stats['processed'] += 1
+                    
+                except Exception as e:
+                    logger.error(f"Error extracting entities for drug {drug.get('name', 'Unknown')}: {str(e)}")
+                    stats['errors'] += 1
+                
+            except Exception as e:
+                logger.error(f"Error processing drug {drug.get('name', 'Unknown')}: {str(e)}")
+                stats['errors'] += 1
+        
+        return stats
 
 def main():
-    """Main function to run the indication pipeline"""
-    parser = argparse.ArgumentParser(description='Run indication processing pipeline')
-    parser.add_argument('--output-dir', type=str, help='Directory to save intermediate results')
+    """主函数"""
+    parser = argparse.ArgumentParser(description='Process and index indications')
+    parser.add_argument('--output-dir', required=True, help='Output directory path')
+    parser.add_argument('--clear', action='store_true', help='Clear existing indices before processing')
     args = parser.parse_args()
     
-    pipeline = IndicationPipeline()
-    pipeline.run(output_dir=args.output_dir)
+    # 初始化管道
+    pipeline = IndicationPipeline(args.output_dir)
+    
+    # 清理现有索引
+    if args.clear:
+        logger.info("Clearing existing indices...")
+        pipeline.indexer.clear_all_indices()
+    
+    # 创建索引
+    logger.info("Creating indices...")
+    pipeline.indexer.create_indices()
+    
+    # 从 ES 获取适应症数据
+    logger.info("Fetching indications from Elasticsearch...")
+    indications = pipeline.fetch_indications()
+    
+    # 处理数据
+    logger.info("Processing indications...")
+    stats = pipeline.process_indications(indications)
+    
+    # 输出统计信息
+    logger.info("Processing completed:")
+    logger.info(f"Total drugs: {stats['total']}")
+    logger.info(f"Processed: {stats['processed']}")
+    logger.info(f"Indexed entities: {stats['indexed']}")
+    logger.info(f"Errors: {stats['errors']}")
+    
+    if stats['errors'] > 0:
+        logger.info(f"Check {pipeline.error_log} for error details")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

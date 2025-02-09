@@ -1,176 +1,212 @@
-import os
-from elasticsearch import Elasticsearch
-from typing import List, Dict, Any
 import logging
-from datetime import datetime
-from dotenv import load_dotenv
+from typing import Dict, List, Any
+from elasticsearch import Elasticsearch
+from elasticsearch.helpers import bulk
+import hashlib
 import argparse
+import os
 
-# Load environment variables
-load_dotenv()
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 class IndicationIndexer:
-    """适应症索引管理器"""
+    """适应症索引器"""
     
-    def __init__(self, es_config: Dict[str, Any]):
-        """初始化ES客户端
+    def __init__(self, es: Elasticsearch):
+        """初始化索引器
         
         Args:
-            es_config: ES配置信息
+            es: Elasticsearch 客户端实例
         """
-        self.es = Elasticsearch(**es_config)
-        
+        self.es = es
+        self.index_name = 'indications'
+    
     def create_indices(self):
-        """创建适应症索引"""
-        indication_mapping = {
+        """创建或更新索引映射"""
+        logger.info("Creating indication index...")
+        
+        # 定义索引映射
+        mappings = {
             "mappings": {
                 "properties": {
-                    "id": {"type": "keyword"},
-                    "name": {
+                    "id": {"type": "keyword"},  # 实体ID
+                    "text": {  # 实体文本
                         "type": "text",
-                        "analyzer": "drug_analyzer",
+                        "analyzer": "standard",
+                        "fields": {
+                            "keyword": {"type": "keyword"}
+                        }
+                    },
+                    "type": {"type": "keyword"},  # 实体类型
+                    "medical_system": {"type": "keyword"},  # 医学体系
+                    "standard_name": {  # 标准化名称
+                        "type": "text",
+                        "analyzer": "standard",
                         "fields": {
                             "raw": {"type": "keyword"}
                         }
                     },
-                    "category": {"type": "keyword"},
-                    "normalized_name": {
-                        "type": "text",
-                        "analyzer": "drug_analyzer",
-                        "fields": {
-                            "raw": {"type": "keyword"}
+                    "attributes": {  # 属性
+                        "properties": {
+                            "pathogen": {"type": "keyword"},  # 病原体
+                            "body_part": {"type": "keyword"}  # 相关部位
                         }
                     },
-                    "source_drugs": {
-                        "type": "nested",
+                    "relations": {  # 关系
                         "properties": {
-                            "drug_id": {"type": "keyword"},
-                            "drug_name": {
-                                "type": "text",
-                                "fields": {
-                                    "raw": {"type": "keyword"}
-                                }
-                            }
-                        }
-                    },
-                    "entities": {
-                        "type": "nested",
-                        "properties": {
+                            "head": {"type": "keyword"},
+                            "tail": {"type": "keyword"},
                             "type": {"type": "keyword"},
-                            "name": {
+                            "evidence_level": {"type": "keyword"},
+                            "source": {"type": "keyword"}
+                        }
+                    },
+                    "drug_ids": {"type": "keyword"},  # 关联的药品ID
+                    "metadata": {  # 元数据
+                        "properties": {
+                            "original_text": {
                                 "type": "text",
+                                "analyzer": "standard",
                                 "fields": {
-                                    "raw": {"type": "keyword"}
+                                    "keyword": {"type": "keyword"}
                                 }
                             },
-                            "attributes": {
-                                "type": "nested",
-                                "properties": {
-                                    "key": {"type": "keyword"},
-                                    "value": {"type": "keyword"}
-                                }
-                            }
+                            "processing_notes": {"type": "text"},
+                            "confidence_score": {"type": "float"}
                         }
                     },
-                    "create_time": {"type": "date"},
-                    "update_time": {"type": "date"}
+                    "create_time": {"type": "date"}
                 }
             },
             "settings": {
                 "analysis": {
                     "analyzer": {
-                        "drug_analyzer": {
+                        "text_analyzer": {
                             "type": "custom",
                             "tokenizer": "standard",
-                            "filter": ["lowercase", "stop"],
-                            "char_filter": ["html_strip"]
+                            "filter": [
+                                "lowercase",
+                                "stop"
+                            ]
                         }
                     }
                 }
             }
         }
         
-        try:
-            if not self.es.indices.exists(index='indications'):
-                self.es.indices.create(index='indications', body=indication_mapping)
-                logger.info("Created indications index")
-            else:
-                logger.info("Indications index already exists")
-        except Exception as e:
-            logger.error(f"Error creating indices: {str(e)}")
-            raise
+        # 如果索引存在则删除
+        if self.es.indices.exists(index=self.index_name):
+            self.es.indices.delete(index=self.index_name)
+        
+        # 创建新索引
+        self.es.indices.create(index=self.index_name, body=mappings)
+        logger.info(f"Created index: {self.index_name}")
     
-    def clear_indices(self):
-        """清空适应症索引"""
-        try:
-            if self.es.indices.exists(index='indications'):
-                self.es.indices.delete(index='indications')
-                logger.info("Deleted indications index")
-        except Exception as e:
-            logger.error(f"Error clearing indices: {str(e)}")
-            raise
+    def clear_all_indices(self):
+        """清除所有相关索引"""
+        logger.info("Clearing all indices...")
+        if self.es.indices.exists(index=self.index_name):
+            self.es.indices.delete(index=self.index_name)
+            logger.info(f"Deleted index: {self.index_name}")
     
-    def index_indications(self, indications: List[Dict]):
-        """索引适应症数据
+    def generate_entity_id(self, text: str, type: str) -> str:
+        """生成实体ID
         
         Args:
-            indications: 适应症数据列表
-        """
-        try:
-            for indication in indications:
-                # 添加时间戳
-                indication['update_time'] = datetime.now().isoformat()
-                if 'create_time' not in indication:
-                    indication['create_time'] = indication['update_time']
-                
-                # 索引文档
-                self.es.index(
-                    index='indications',
-                    id=indication['id'],
-                    body=indication
-                )
-            
-            logger.info(f"Indexed {len(indications)} indications")
-        except Exception as e:
-            logger.error(f"Error indexing indications: {str(e)}")
-            raise
-    
-    def search_indications(self, query: str, fields: List[str] = None) -> List[Dict]:
-        """搜索适应症
-        
-        Args:
-            query: 搜索查询
-            fields: 搜索字段列表
+            text: 实体文本
+            type: 实体类型
             
         Returns:
-            List[Dict]: 搜索结果列表
+            str: 实体ID
         """
-        if fields is None:
-            fields = ['name^2', 'normalized_name', 'entities.name']
+        content = f"{text}_{type}"
+        return hashlib.md5(content.encode()).hexdigest()
+    
+    def index_entities(self, entities_data: Dict[str, Any], drug_id: str) -> Dict[str, int]:
+        """索引实体数据
+        
+        Args:
+            entities_data: LLM 返回的实体数据，包含 entities 和 metadata
+            drug_id: 药品ID
             
-        try:
-            response = self.es.search(
-                index='indications',
-                body={
-                    'query': {
-                        'multi_match': {
-                            'query': query,
-                            'fields': fields
+        Returns:
+            Dict[str, int]: 索引统计信息
+        """
+        stats = {'success': 0, 'failed': 0}
+        
+        # 确保数据格式正确
+        if not isinstance(entities_data, dict):
+            logger.error(f"Invalid entities data format: {type(entities_data)}")
+            return stats
+            
+        entities = entities_data.get('entities', [])
+        if not isinstance(entities, list):
+            logger.error(f"Invalid entities format: {type(entities)}")
+            return stats
+        
+        def generate_actions():
+            """生成批量索引操作"""
+            for entity in entities:
+                try:
+                    # 生成实体ID
+                    entity_id = self.generate_entity_id(
+                        entity.get('text', ''),
+                        entity.get('type', 'unknown')
+                    )
+                    
+                    # 检查实体是否已存在
+                    try:
+                        existing = self.es.get(index=self.index_name, id=entity_id)
+                        # 如果存在，更新drug_ids
+                        doc = existing['_source']
+                        if 'drug_ids' not in doc:
+                            doc['drug_ids'] = []
+                        if drug_id not in doc['drug_ids']:
+                            doc['drug_ids'].append(drug_id)
+                        yield {
+                            '_index': self.index_name,
+                            '_id': entity_id,
+                            '_op_type': 'index',
+                            '_source': doc
                         }
-                    }
-                }
+                    except:
+                        # 如果不存在，创建新文档
+                        doc = {
+                            'id': entity_id,
+                            'text': entity.get('text', ''),
+                            'type': entity.get('type', 'unknown'),
+                            'medical_system': entity.get('medical_system', 'unknown'),
+                            'standard_name': entity.get('standard_name', ''),
+                            'attributes': entity.get('attributes', {}),
+                            'drug_ids': [drug_id],
+                            'metadata': entities_data.get('metadata', {})
+                        }
+                        yield {
+                            '_index': self.index_name,
+                            '_id': entity_id,
+                            '_op_type': 'index',
+                            '_source': doc
+                        }
+                except Exception as e:
+                    logger.error(f"Error generating action for entity: {str(e)}")
+                    stats['failed'] += 1
+        
+        try:
+            # 执行批量索引
+            success, failed = bulk(
+                self.es,
+                generate_actions(),
+                stats_only=True,
+                raise_on_error=False
             )
             
-            return [hit['_source'] for hit in response['hits']['hits']]
+            stats['success'] = success
+            stats['failed'] = failed
+            
         except Exception as e:
-            logger.error(f"Error searching indications: {str(e)}")
-            raise
+            logger.error(f"Error during bulk indexing: {str(e)}")
+            stats['failed'] += len(entities)
+        
+        return stats
 
 def main():
     """Main function to manage indication indices"""
@@ -180,15 +216,15 @@ def main():
     
     # Initialize indexer
     indexer = IndicationIndexer(
-        es_config={
-            'hosts': ['http://localhost:9200'],
-            'basic_auth': ('elastic', os.getenv('ELASTIC_PASSWORD', 'changeme'))
-        }
+        es=Elasticsearch(
+            hosts=['http://localhost:9200'],
+            basic_auth=('elastic', os.getenv('ELASTIC_PASSWORD', 'changeme'))
+        )
     )
     
     if args.clear:
         logger.info("Clearing existing indices...")
-        indexer.clear_indices()
+        indexer.clear_all_indices()
     
     logger.info("Creating indices...")
     indexer.create_indices()
