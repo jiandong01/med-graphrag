@@ -1,65 +1,67 @@
 # Medical Knowledge Graph with LLM Enhancement
 
-A sophisticated medical knowledge graph system that leverages Large Language Models (LLM) for intelligent entity extraction and relationship building from medical texts. The system combines traditional database systems with modern AI capabilities and graph database technology to create a comprehensive medical knowledge base.
+A sophisticated medical knowledge graph system that leverages Large Language Models (LLM) and Elasticsearch for intelligent drug information processing and retrieval. The system combines modern AI capabilities with powerful search functionality to create a comprehensive medical knowledge base.
 
 ## 🌟 Features
 
-- **Intelligent Entity Extraction**
-  - Utilizes DeepSeek-R1-Distill-Qwen-32B model for processing medical texts
-  - Extracts diseases, symptoms, and medical relationships
-  - Provides confidence scores and evidence levels
-  - Standardizes medical terminology
+- **Intelligent Drug Information Processing**
+  - Standardized tag normalization for drug information
+  - Comprehensive drug property extraction
+  - Structured data organization
+  - Advanced search capabilities
 
-- **Comprehensive Knowledge Graph**
-  - Hierarchical drug categorization
-  - Detailed drug information and properties
-  - Rich relationship types (indications, contraindications, interactions)
-  - Manufacturer and production information
+- **Elasticsearch Integration**
+  - Full-text search across drug information
+  - Complex query support
+  - Faceted search capabilities
+  - Fast and efficient retrieval
 
 - **Advanced Data Processing**
-  - ETL pipeline from MySQL to Neo4j
+  - Robust ETL pipeline
   - Batch processing capabilities
-  - Robust error handling and logging
-  - Optimized graph queries with indexes
+  - Comprehensive error handling and logging
+  - Optimized search indices
 
 ## 🏗️ System Architecture
 
-### Data Flow
-1. Raw medical data stored in MySQL
-2. LLM processes and extracts structured entities
-3. Data transformation into graph structure
-4. Storage in Neo4j graph database
-
 ### Components
 
-#### Entity Generation (`generate_drug_entity.py`)
+#### Tag Normalization (`tag_normalizer.py`)
+- Standardizes drug information tags
+- Maintains consistent terminology
+- Provides Elasticsearch mapping properties
+- Handles various Chinese medical terms
+
+#### Drug Entity Extraction (`drug_entity_extractor.py`)
 - LLM-based entity extraction
-- Structured JSON output format
+- Structured JSON output
 - Batch processing capabilities
 - Temporal tracking of extractions
 
-#### Knowledge Graph Construction (`generate_raw_kg.py`)
-- Comprehensive node types:
-  - Drugs
-  - Categories
-  - Manufacturers
-  - Medical conditions
-  - Adverse reactions
-  - Contraindications
-- Rich relationship types:
-  - BELONGS_TO
-  - MANUFACTURED_BY
-  - HAS_INDICATION
-  - MAY_CAUSE
-  - CONTRAINDICATED_WITH
-  - HAS_INTERACTION
+#### Database Management (`database_manager.py`)
+- Handles database operations
+- Manages data persistence
+- Supports multiple database types
+- Robust error handling
+
+#### Elasticsearch Integration (`elasticsearch_indexer.py`)
+- Creates and manages Elasticsearch indices
+- Processes drug information
+- Provides search functionality
+- Handles complex queries
+
+#### Utility Functions (`utils.py`)
+- Configuration management
+- Logging setup
+- Environment variable handling
+- Common helper functions
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 - Python 3.8+
-- MySQL
-- Neo4j
+- Elasticsearch 8.x
+- PostgreSQL
 - Hugging Face API key
 
 ### Installation
@@ -70,47 +72,56 @@ pip install -r requirements.txt
 ```
 
 ### Configuration
-1. Set up MySQL database with required tables:
-   - categories_table
-   - drugs_table
-   - drug_details_table
+1. Set up environment variables:
+   ```
+   HF_API_KEY=your_hugging_face_api_key
+   ELASTIC_PASSWORD=your_elastic_password
+   POSTGRES_DB=your_db_name
+   POSTGRES_USER=your_db_user
+   POSTGRES_PASSWORD=your_db_password
+   ```
 
-2. Configure Neo4j connection:
-   - Default port: 7687
-   - Default credentials: neo4j/test_neo4j
-
-3. Set up your Hugging Face API key for LLM access
+2. Configure Elasticsearch:
+   - Default URL: http://localhost:9200
+   - Default credentials: elastic/changeme
 
 ### Usage
 
-1. Generate entities from medical texts:
-```python
-python src/generate_drug_entity.py
+1. Process and normalize drug information:
+```bash
+python src/tag_normalizer.py
 ```
 
-2. Build the knowledge graph:
-```python
-python src/generate_raw_kg.py
+2. Extract drug entities:
+```bash
+python src/drug_entity_extractor.py
+```
+
+3. Index data in Elasticsearch:
+```bash
+python src/elasticsearch_indexer.py
 ```
 
 ## 📊 Data Model
 
-### Node Types
-- **Drug**: Pharmaceutical products with properties
-- **Category**: Hierarchical classification system
-- **Manufacturer**: Production companies
-- **Indication**: Medical conditions and uses
-- **AdverseReaction**: Side effects
-- **Contraindication**: Usage warnings
-- **DrugInteraction**: Inter-drug effects
+### Drug Information Structure
+- **Basic Information**
+  - Name
+  - Specification
+  - Manufacturer
 
-### Relationship Types
-- **BELONGS_TO**: Drug category hierarchy
-- **MANUFACTURED_BY**: Production information
-- **HAS_INDICATION**: Drug uses and applications
-- **MAY_CAUSE**: Potential side effects
-- **CONTRAINDICATED_WITH**: Usage restrictions
-- **HAS_INTERACTION**: Drug interactions
+- **Detailed Properties**
+  - Components
+  - Indications
+  - Contraindications
+  - Adverse Reactions
+  - Usage Instructions
+
+### Search Capabilities
+- Full-text search
+- Field-specific queries
+- Complex boolean queries
+- Aggregations and analytics
 
 ## 🔍 Query Examples
 

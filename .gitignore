@@ -3,6 +3,10 @@
 *.log
 .DS_Store
 
+# python
+__pycache__
+
+# db
 db/mysql/docker-entrypoint-initdb.d/
 storage/
 secrets/
