@@ -96,19 +96,18 @@ class IndicationExporter:
                 'total_unique_indications': len(indication_list),
                 'total_drugs': len(drug_indication_counts),
                 'avg_indications_per_drug': sum(drug_indication_counts.values()) / len(drug_indication_counts) if drug_indication_counts else 0,
-                'drugs_by_indication_count': {},  # 按适应症数量统计药品数
-                'indications_by_drug_count': {},  # 按关联药品数量统计适应症数
-                'extraction_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                'extraction_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'indication_stats': {
+                    'min_drugs': min(len(ind['drugs']) for ind in indication_list),
+                    'max_drugs': max(len(ind['drugs']) for ind in indication_list),
+                    'avg_drugs': sum(len(ind['drugs']) for ind in indication_list) / len(indication_list)
+                },
+                'drug_stats': {
+                    'min_indications': min(drug_indication_counts.values()),
+                    'max_indications': max(drug_indication_counts.values()),
+                    'avg_indications': sum(drug_indication_counts.values()) / len(drug_indication_counts)
+                }
             }
-            
-            # 统计每个药品的适应症数量分布
-            for count in drug_indication_counts.values():
-                stats['drugs_by_indication_count'][str(count)] = stats['drugs_by_indication_count'].get(str(count), 0) + 1
-            
-            # 统计每个适应症关联的药品数量分布
-            for ind in indication_list:
-                num_drugs = len(ind['drugs'])
-                stats['indications_by_drug_count'][str(num_drugs)] = stats['indications_by_drug_count'].get(str(num_drugs), 0) + 1
             
             # 保存到文件
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -125,18 +124,17 @@ class IndicationExporter:
             
             # 输出日志信息
             logger.info(f"Successfully exported {len(indication_list)} unique raw indications to {output_file}")
-            logger.info(f"Total drugs processed: {len(drug_indication_counts)}")
-            logger.info(f"Average indications per drug: {stats['avg_indications_per_drug']:.2f}")
+            logger.info(f"Total drugs processed: {stats['total_drugs']}")
+            logger.info(f"\nIndication statistics:")
+            logger.info(f"  Min drugs per indication: {stats['indication_stats']['min_drugs']}")
+            logger.info(f"  Max drugs per indication: {stats['indication_stats']['max_drugs']}")
+            logger.info(f"  Avg drugs per indication: {stats['indication_stats']['avg_drugs']:.2f}")
             
-            # 输出分布信息
-            logger.info("\nDistribution of indications per drug:")
-            for count, num_drugs in sorted(stats['drugs_by_indication_count'].items(), key=lambda x: int(x[0])):
-                logger.info(f"  {count} indication(s): {num_drugs} drugs")
-                
-            logger.info("\nDistribution of drugs per indication:")
-            for num_drugs, count in sorted(stats['indications_by_drug_count'].items(), key=lambda x: int(x[0])):
-                logger.info(f"  {num_drugs} drug(s): {count} indications")
-                
+            logger.info(f"\nDrug statistics:")
+            logger.info(f"  Min indications per drug: {stats['drug_stats']['min_indications']}")
+            logger.info(f"  Max indications per drug: {stats['drug_stats']['max_indications']}")
+            logger.info(f"  Avg indications per drug: {stats['drug_stats']['avg_indications']:.2f}")
+            
         except Exception as e:
             logger.error(f"Error exporting indications: {str(e)}")
             raise

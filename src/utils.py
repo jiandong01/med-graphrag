@@ -13,8 +13,6 @@ def load_env():
     # 验证必要的环境变量是否存在
     required_vars = [
         'HF_API_KEY',
-        'POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD',
-        'NEO4J_URI', 'NEO4J_USER', 'NEO4J_PASSWORD'
     ]
     
     missing_vars = [var for var in required_vars if not os.getenv(var)]
