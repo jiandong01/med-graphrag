@@ -25,90 +25,12 @@ class DrugIndexer:
         logger.info("Creating indices...")
         
         # 药品索引设置
-        drug_settings = {
-            "analysis": {
-                "analyzer": {
-                    "text_analyzer": {
-                        "type": "custom",
-                        "tokenizer": "standard",
-                        "filter": ["lowercase", "stop"],
-                        "char_filter": ["html_strip"]
-                    }
-                }
-            }
-        }
-        
-        # 药品索引映射
-        drug_mapping = {
-            "properties": {
-                "id": {"type": "keyword"},
-                "name": {
-                    "type": "text",
-                    "analyzer": "text_analyzer",
-                    "fields": {
-                        "keyword": {"type": "keyword"}
-                    }
-                },
-                "spec": {"type": "text"},
-                "create_time": {"type": "date"},
-                "components": {
-                    "type": "text",
-                    "analyzer": "text_analyzer",
-                    "fields": {
-                        "keyword": {"type": "keyword"}
-                    }
-                },
-                "indications": {
-                    "type": "text",
-                    "analyzer": "text_analyzer",
-                    "fields": {
-                        "keyword": {"type": "keyword"}
-                    }
-                },
-                "contraindications": {
-                    "type": "text",
-                    "analyzer": "text_analyzer",
-                    "fields": {
-                        "keyword": {"type": "keyword"}
-                    }
-                },
-                "adverse_reactions": {
-                    "type": "text",
-                    "analyzer": "text_analyzer",
-                    "fields": {
-                        "keyword": {"type": "keyword"}
-                    }
-                },
-                "precautions": {
-                    "type": "text",
-                    "analyzer": "text_analyzer",
-                    "fields": {
-                        "keyword": {"type": "keyword"}
-                    }
-                },
-                "interactions": {
-                    "type": "text",
-                    "analyzer": "text_analyzer",
-                    "fields": {
-                        "keyword": {"type": "keyword"}
-                    }
-                },
-                "usage": {"type": "text"},
-                "approval_number": {"type": "keyword"},
-                "details": {
-                    "type": "nested",
-                    "properties": {
-                        "tag": {"type": "keyword"},
-                        "content": {"type": "text"}
-                    }
-                }
-            }
-        }
+        from .drug_mapping import DRUG_INDEX_MAPPING
         
         logger.info("Creating drug index...")
         self.es.indices.create(
             index=self.drug_index,
-            body={"settings": drug_settings, "mappings": drug_mapping},
+            body=DRUG_INDEX_MAPPING,
             ignore=400  # 忽略已存在的索引错误
         )
         logger.info(f"Created index: {self.drug_index}")
@@ -140,9 +62,8 @@ class DrugIndexer:
         """
         logger.info("Indexing drugs...")
         
-        # 批量索引
-        batch_size = 500  # 增加批量大小以减少请求次数
-        total_batches = (len(drugs) + batch_size - 1) // batch_size
+        # 减小批量大小以避免请求过大
+        batch_size = 100  # 从500减小到100
         
         # 使用tqdm显示总体进度
         with tqdm(total=len(drugs), desc="Indexing drugs") as pbar:
@@ -158,8 +79,8 @@ class DrugIndexer:
                 
                 if operations:
                     try:
-                        # 使用bulk API批量索引
-                        response = self.es.bulk(operations=operations, refresh=True)
+                        # 使用bulk API批量索引，关闭实时刷新以提高性能
+                        response = self.es.bulk(operations=operations, refresh=False)
                         if response.get('errors'):
                             # 记录失败的文档
                             for item in response['items']:
@@ -172,6 +93,8 @@ class DrugIndexer:
                 # 更新进度条
                 pbar.update(len(batch))
         
+        # 完成后执行一次刷新
+        self.es.indices.refresh(index=self.drug_index)
         logger.info(f"Successfully indexed {len(drugs)} drugs")
 
 def main():

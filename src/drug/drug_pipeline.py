@@ -2,7 +2,7 @@ import os
 import logging
 import argparse
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 from datetime import datetime
 import pandas as pd
@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, text
 from tqdm import tqdm
 from dotenv import load_dotenv
 import sys
+import time
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -27,172 +28,259 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+def setup_logging():
+    """设置日志配置"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    # 设置ES传输日志级别为WARNING，减少输出
+    logging.getLogger('elastic_transport.transport').setLevel(logging.WARNING)
 
 class DrugPipeline:
     """药品数据处理管道"""
     
-    def __init__(self):
-        """初始化管道组件"""
-        self.normalizer = DrugNormalizer()
-        self.tag_processor = TagPreprocessor()
+    def __init__(self, mysql_url: str, es_config: Dict[str, Any]):
+        """初始化
+
+        Args:
+            mysql_url: MySQL连接URL
+            es_config: Elasticsearch配置
+        """
+        self.mysql_url = mysql_url
+        self.es_config = es_config
+        self.normalizer = None  # 延迟初始化
+        self.logger = logging.getLogger(__name__)
         
         # 设置ES传输日志级别为WARNING，减少输出
         logging.getLogger('elastic_transport.transport').setLevel(logging.WARNING)
         
         # 初始化ES索引器
-        es_config = {
-            'hosts': ['http://localhost:9200'],
-            'basic_auth': ('elastic', os.getenv('ELASTIC_PASSWORD', 'changeme'))
-        }
         self.indexer = DrugIndexer(es_config=es_config)
-        
-        # MySQL配置
-        self.mysql_url = (
-            f"mysql+mysqlconnector://{os.getenv('MYSQL_USER')}:"
-            f"{os.getenv('MYSQL_PASSWORD')}@{os.getenv('MYSQL_HOST', 'localhost')}:"
-            f"{os.getenv('MYSQL_PORT', '3306')}/{os.getenv('MYSQL_DB')}"
-        )
-        
-        # 设置日志格式
-        self.logger = logging.getLogger(__name__)
-    
+
     def fetch_data(self) -> tuple:
         """从MySQL获取药品数据
         
         Returns:
-            tuple: (drugs_df, drug_details_df)
+            tuple: (drugs_df, drug_details_df, categories_df)
         """
-        self.logger.info("Fetching data from MySQL...")
         try:
             engine = create_engine(self.mysql_url)
             
-            # 获取药品基本信息
+            # 1. 获取药品基础信息，使用 GROUP BY 合并同一药品的多条记录
             drugs_query = """
-                SELECT id, name, spec, create_time
+                SELECT 
+                    id,
+                    MAX(name) as name,  -- 取最新的名称
+                    MAX(spec) as spec,  -- 取最新的规格
+                    MAX(create_time) as create_time,  -- 取最新的创建时间
+                    GROUP_CONCAT(DISTINCT parent_id) as parent_ids  -- 收集所有的 parent_id
                 FROM drugs_table
+                GROUP BY id
             """
             drugs_df = pd.read_sql(drugs_query, engine)
             
-            # 获取药品详情
+            # 2. 获取分类信息
+            categories_query = """
+                SELECT id as category_id, category, parent_id
+                FROM categories_table
+                WHERE category IS NOT NULL
+            """
+            categories_df = pd.read_sql(categories_query, engine)
+            
+            # 3. 获取药品详情
             details_query = """
-                SELECT id as drug_id, tag, tcontent as content
+                SELECT 
+                    id as drug_id,  -- id 字段作为 drug_id
+                    tag,
+                    tcontent as content,  -- tcontent 字段作为 content
+                    create_time,
+                    update_time
                 FROM drug_details_table
-                WHERE del_flag = 0
+                WHERE del_flag = 0  -- 只获取未删除的记录
             """
             drug_details_df = pd.read_sql(details_query, engine)
             
-            self.logger.info(f"Fetched {len(drugs_df)} drugs and {len(drug_details_df)} details")
-            return drugs_df, drug_details_df
+            # 4. 处理parent_ids，转换为列表
+            drugs_df['parent_ids'] = drugs_df['parent_ids'].apply(
+                lambda x: list(map(str.strip, str(x).split(','))) if pd.notna(x) else []
+            )
+            
+            # 记录数据获取情况
+            total_drugs = len(drugs_df)
+            total_details = len(drug_details_df)
+            drugs_with_details = len(drug_details_df['drug_id'].unique())
+            
+            self.logger.info("数据获取完成:")
+            self.logger.info(f"- 总药品数: {total_drugs}")
+            self.logger.info(f"- 详情记录数: {total_details}")
+            self.logger.info(f"- 有详情的药品数: {drugs_with_details}")
+            
+            # 检查是否有药品缺少详情
+            drugs_without_details = total_drugs - drugs_with_details
+            if drugs_without_details > 0:
+                self.logger.warning(f"发现 {drugs_without_details} 个药品没有详情信息")
+            
+            return drugs_df, drug_details_df, categories_df
             
         except Exception as e:
-            self.logger.error(f"Error fetching data: {str(e)}")
+            self.logger.error(f"获取数据时发生错误: {str(e)}")
             raise
-    
-    def process_drug_details(self, details_df: pd.DataFrame) -> Dict[str, Dict]:
-        """处理药品详情数据
-        
-        Args:
-            details_df: 药品详情DataFrame
-            
-        Returns:
-            Dict[str, Dict]: 处理后的详情数据，以drug_id为key
-        """
-        self.logger.info("Processing drug details...")
+
+    def process_drug_details(self, drug_details_df: pd.DataFrame) -> Dict[str, Dict]:
+        """处理药品详情数据"""
+        self.logger.info("开始处理药品详情...")
         processed_details = {}
         
-        # 统计信息
-        total_details = len(details_df)
-        total_unique_drugs = len(details_df['drug_id'].unique())
-        details_per_drug = details_df.groupby('drug_id').size()
+        # 先初始化一个基础的 DrugNormalizer
+        self.normalizer = DrugNormalizer()
         
-        self.logger.info(f"Total details: {total_details}")
-        self.logger.info(f"Average details per drug: {total_details/total_unique_drugs:.2f}")
-        self.logger.info(f"Max details per drug: {details_per_drug.max()}")
-        self.logger.info(f"Min details per drug: {details_per_drug.min()}")
+        # 获取分类信息
+        try:
+            engine = create_engine(self.mysql_url)
+            categories_query = """
+                SELECT id as category_id, category, parent_id
+                FROM categories_table
+                WHERE category IS NOT NULL
+            """
+            categories_df = pd.read_sql(categories_query, engine)
+            
+            # 构建分类树
+            category_tree = {}
+            for _, cat in categories_df.iterrows():
+                category_tree[cat['category_id']] = {
+                    'category': self.normalizer.clean_text(cat['category']) if cat['category'] else '',
+                    'parent_id': cat['parent_id']
+                }
+            
+            # 使用分类树重新初始化 DrugNormalizer
+            self.normalizer = DrugNormalizer(category_tree=category_tree)
+            
+        except Exception as e:
+            self.logger.error(f"获取分类信息时发生错误: {str(e)}")
+            # 如果获取分类失败，继续使用基础的 DrugNormalizer
+            pass
         
-        # 按drug_id分组处理
-        for drug_id, group in tqdm(details_df.groupby('drug_id'),
-                                 desc="Processing drug details",
-                                 total=len(details_df['drug_id'].unique())):
+        # 按药品ID分组
+        for drug_id, group in tqdm(drug_details_df.groupby('drug_id'), desc="处理药品详情"):
             try:
-                # 转换为列表格式
-                details = [
-                    {
-                        'tag': row['tag'],
-                        'content': row['content']
-                    }
-                    for _, row in group.iterrows()
-                    if pd.notnull(row['tag']) and pd.notnull(row['content'])
-                ]
+                details = []
                 
-                # 记录原始标签统计
-                tag_counts = group['tag'].value_counts()
-                if len(tag_counts) > 1:
-                    self.logger.debug(f"Drug {drug_id} has multiple tags: {dict(tag_counts)}")
+                # 处理每条详情记录
+                for _, row in group.iterrows():
+                    tag = row['tag']
+                    content = row['content']
+                    
+                    # 跳过空内容
+                    if pd.isna(content) or not content.strip():
+                        continue
+                        
+                    # 添加到详情列表
+                    details.append({
+                        'original_tag': tag,
+                        'normalized_tag': tag.lower(),  # 标准化tag
+                        'content': content.strip()
+                    })
                 
-                # 处理标签
-                normalized_details = []
-                skipped_details = []
-                for detail in details:
-                    try:
-                        tag, is_main = self.tag_processor.process_tag(detail['tag'])
-                        if is_main:  # 只处理主要标签
-                            normalized_details.append({
-                                'tag': tag,
-                                'content': detail['content']
-                            })
-                        else:
-                            skipped_details.append(detail['tag'])
-                    except Exception as e:
-                        self.logger.warning(f"Error processing tag for drug {drug_id}: {str(e)}")
+                # 使用DrugNormalizer处理详情
+                if details:
+                    processed_details[drug_id] = self.normalizer.process_details(details)
                 
-                if skipped_details:
-                    self.logger.debug(f"Skipped non-main tags for drug {drug_id}: {skipped_details}")
-                
-                # 使用规范化器处理详情
-                processed_details[drug_id] = self.normalizer.process_details(normalized_details)
             except Exception as e:
-                self.logger.error(f"Error processing drug details for drug {drug_id}: {str(e)}")
+                self.logger.error(f"处理药品 {drug_id} 的详情时发生错误: {str(e)}")
         
-        # 输出处理后的统计信息
-        processed_drugs_count = len(processed_details)
-        self.logger.info(f"Successfully processed details for {processed_drugs_count} drugs")
-        if processed_drugs_count != total_unique_drugs:
-            self.logger.warning(f"Failed to process {total_unique_drugs - processed_drugs_count} drugs")
+        self.logger.info("详情处理完成:")
+        self.logger.info(f"- 成功处理: {len(processed_details)} 个药品")
+        failed_count = len(drug_details_df['drug_id'].unique()) - len(processed_details)
+        if failed_count > 0:
+            self.logger.warning(f"- 处理失败: {failed_count} 个药品")
         
         return processed_details
-    
-    def process_drugs(self, drugs_df: pd.DataFrame, processed_details: Dict[str, Dict]) -> List[Dict]:
-        """处理药品数据
-        
-        Args:
-            drugs_df: 药品DataFrame
-            processed_details: 处理后的详情数据
-            
-        Returns:
-            List[Dict]: 处理后的药品列表
-        """
-        self.logger.info("Processing drugs...")
+
+    def process_drugs(self, drugs_df: pd.DataFrame, processed_details: Dict[str, Dict], categories_df: pd.DataFrame) -> List[Dict]:
+        """处理药品数据"""
+        self.logger.info("开始处理药品数据...")
         processed_drugs = []
         
-        # 使用tqdm显示进度
-        for _, drug in tqdm(drugs_df.iterrows(), desc="Processing drugs", total=len(drugs_df)):
+        # 构建分类ID到分类信息的映射
+        category_map = {}
+        for _, cat in categories_df.iterrows():
+            category_map[str(cat['category_id'])] = {
+                'category': self.normalizer.clean_text(cat['category']) if cat['category'] else '',
+                'parent_id': cat['parent_id']
+            }
+        
+        # 只处理有详情的药品
+        drugs_with_details = list(processed_details.keys())
+        drugs_df = drugs_df[drugs_df['id'].isin(drugs_with_details)]
+        
+        # 按药品ID分组处理
+        for _, drug in tqdm(drugs_df.iterrows(), desc="处理药品数据", total=len(drugs_df)):
             try:
+                drug_id = drug['id']
                 # 获取详情数据
-                details = processed_details.get(drug['id'], None)
+                details = processed_details.get(drug_id)
                 
-                # 只处理有详情的药品
                 if details is not None:
+                    # 格式化日期为ES要求的格式
+                    create_time = str(drug['create_time'])
+                    if len(create_time) == 8:  # 如果是 YYYYMMDD 格式
+                        create_time = f"{create_time[:4]}-{create_time[4:6]}-{create_time[6:]}"
+                    
+                    # 处理分类信息
+                    categories = []
+                    category_hierarchy = []
+                    
+                    # 从parent_ids获取分类信息
+                    parent_ids = drug['parent_ids']
+                    for parent_id in parent_ids:
+                        if parent_id in category_map:
+                            cat_info = category_map[parent_id]
+                            cat_name = cat_info['category']
+                            
+                            # 添加分类名称
+                            if cat_name and cat_name not in categories:
+                                categories.append(cat_name)
+                            
+                            # 构建分类层级
+                            hierarchy = {
+                                'category': cat_name,
+                                'category_id': parent_id,
+                                'parent_id': cat_info['parent_id'] if cat_info['parent_id'] != '0' else None
+                            }
+                            if hierarchy not in category_hierarchy:
+                                category_hierarchy.append(hierarchy)
+                            
+                            # 添加父分类
+                            current_parent_id = cat_info['parent_id']
+                            while current_parent_id and current_parent_id != '0':
+                                parent = category_map.get(current_parent_id)
+                                if parent:
+                                    parent_name = parent['category']
+                                    if parent_name and parent_name not in categories:
+                                        categories.append(parent_name)
+                                    
+                                    parent_hierarchy = {
+                                        'category': parent_name,
+                                        'category_id': current_parent_id,
+                                        'parent_id': parent['parent_id'] if parent['parent_id'] != '0' else None
+                                    }
+                                    if parent_hierarchy not in category_hierarchy:
+                                        category_hierarchy.append(parent_hierarchy)
+                                    
+                                    current_parent_id = parent['parent_id']
+                                else:
+                                    break
+                    
                     # 构建药品文档
                     processed_drug = {
-                        'id': drug['id'],
+                        'id': drug_id,
                         'name': self.normalizer.standardize_name(drug['name']),
                         'spec': self.normalizer.standardize_spec(drug['spec']),
-                        'create_time': self.normalizer.normalize_date(str(drug['create_time'])),
+                        'create_time': create_time,
+                        'categories': categories,
+                        'category_hierarchy': category_hierarchy,
                         'components': details.get('components', []),
                         'indications': details.get('indications', []),
                         'contraindications': details.get('contraindications', []),
@@ -206,129 +294,106 @@ class DrugPipeline:
                     
                     processed_drugs.append(processed_drug)
             except Exception as e:
-                self.logger.error(f"Error processing drug {drug['id']}: {str(e)}")
+                self.logger.error(f"处理药品 {drug_id} 时发生错误: {str(e)}")
         
-        self.logger.info(f"Successfully processed {len(processed_drugs)} drugs with details")
+        self.logger.info(f"药品处理完成:")
+        self.logger.info(f"- 成功处理: {len(processed_drugs)} 个药品")
+        failed_count = len(drugs_df) - len(processed_drugs)
+        if failed_count > 0:
+            self.logger.warning(f"- 处理失败: {failed_count} 个药品")
+        
         return processed_drugs
-    
-    def run(self, output_dir: str = None, clear_indices: bool = False):
-        """运行完整的处理管道
+
+    def run(self, output_dir: Optional[str] = None, clear_indices: bool = False) -> None:
+        """运行数据处理管道
         
         Args:
-            output_dir: 输出目录，用于保存中间结果
+            output_dir: 输出目录路径，用于保存中间结果
             clear_indices: 是否清空现有索引
         """
         try:
-            if output_dir:
-                # 设置文件日志
-                output_path = Path(output_dir)
-                output_path.mkdir(parents=True, exist_ok=True)
-                
-                # 添加文件处理器
-                fh = logging.FileHandler(output_path / 'pipeline.log')
-                fh.setLevel(logging.INFO)
-                formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-                fh.setFormatter(formatter)
-                self.logger.addHandler(fh)
+            # 1. 获取数据
+            drugs_df, drug_details_df, categories_df = self.fetch_data()
             
-            # 1. 获取原始数据
-            drugs_df, drug_details_df = self.fetch_data()
-            self.logger.info(f"Fetched raw data: {len(drugs_df)} drugs, {len(drug_details_df)} details")
-            
-            # 统计数据
-            total_drugs = len(drugs_df)
-            unique_drug_ids_in_details = len(drug_details_df['drug_id'].unique())
-            drugs_in_drugs_table = set(drugs_df['id'].unique())
-            drugs_in_details_table = set(drug_details_df['drug_id'].unique())
-            
-            # 详细统计
-            self.logger.info(f"Total unique drugs in drugs table: {len(drugs_in_drugs_table)}")
-            self.logger.info(f"Total unique drugs in details table: {len(drugs_in_details_table)}")
-            self.logger.info(f"Drugs with details: {unique_drug_ids_in_details}")
-            
-            # 检查数据不一致
-            drugs_without_details = drugs_in_drugs_table - drugs_in_details_table
-            details_without_drugs = drugs_in_details_table - drugs_in_drugs_table
-            
-            self.logger.info(f"Number of drugs without any details: {len(drugs_without_details)}")
-            self.logger.info(f"Number of details for non-existent drugs: {len(details_without_drugs)}")
-            
-            if output_dir:
-                # 保存原始数据
-                output_path = Path(output_dir)
-                output_path.mkdir(parents=True, exist_ok=True)
-                drugs_df.to_csv(output_path / 'raw_drugs.csv', index=False)
-                drug_details_df.to_csv(output_path / 'raw_drug_details.csv', index=False)
-                
-                # 保存统计信息
-                stats = {
-                    'total_drugs': total_drugs,
-                    'unique_drugs_with_details': unique_drug_ids_in_details,
-                    'drugs_without_details': list(drugs_without_details),
-                    'details_without_drugs': list(details_without_drugs)
-                }
-                with open(output_path / 'data_stats.json', 'w', encoding='utf-8') as f:
-                    json.dump(stats, f, ensure_ascii=False, indent=2)
-                
-                # 保存没有详情的药品列表
-                if len(drugs_without_details) > 0:
-                    drugs_without_details_df = drugs_df[drugs_df['id'].isin(drugs_without_details)]
-                    drugs_without_details_df.to_csv(output_path / 'drugs_without_details.csv', index=False)
-                
-                # 保存没有对应药品的详情列表
-                if len(details_without_drugs) > 0:
-                    details_without_drugs_df = drug_details_df[drug_details_df['drug_id'].isin(details_without_drugs)]
-                    details_without_drugs_df.to_csv(output_path / 'details_without_drugs.csv', index=False)
-            
-            # 2. 处理详情数据
+            # 2. 预处理详情数据
             processed_details = self.process_drug_details(drug_details_df)
-            self.logger.info(f"Processed details for {len(processed_details)} drugs")
-            
-            if output_dir:
-                with open(output_path / 'processed_details.json', 'w', encoding='utf-8') as f:
-                    json.dump(processed_details, f, ensure_ascii=False, indent=2)
             
             # 3. 处理药品数据
-            processed_drugs = self.process_drugs(drugs_df, processed_details)
-            self.logger.info(f"Processed {len(processed_drugs)} drugs")
+            processed_drugs = self.process_drugs(drugs_df, processed_details, categories_df)
             
-            # 检查处理后丢失的药品
-            processed_drug_ids = {drug['id'] for drug in processed_drugs}
-            missing_drugs = set(drugs_df['id'].unique()) - processed_drug_ids
-            self.logger.info(f"Number of drugs lost during processing: {len(missing_drugs)}")
-            
+            # 4. 保存中间结果（如果指定了输出目录）
             if output_dir:
-                with open(output_path / 'processed_drugs.json', 'w', encoding='utf-8') as f:
-                    json.dump(processed_drugs, f, ensure_ascii=False, indent=2)
-                    
-                # 保存丢失的药品列表
-                missing_drugs_df = drugs_df[drugs_df['id'].isin(missing_drugs)]
-                missing_drugs_df.to_csv(output_path / 'missing_drugs.csv', index=False)
+                self.save_intermediate_results(processed_drugs, output_dir)
             
-            # 4. 索引数据
-            self.logger.info("Indexing processed drugs...")
+            # 5. 更新ES索引
+            self.logger.info("更新Elasticsearch索引...")
+            indexer = DrugIndexer(self.es_config)
             if clear_indices:
-                self.indexer.clear_all_indices()
-            self.indexer.create_indices()
-            
-            # 使用批量索引
-            self.indexer.index_drugs(processed_drugs)
-            
-            self.logger.info("Pipeline completed successfully")
+                self.logger.info("清空现有索引...")
+                indexer.clear_all_indices()
+            self.logger.info("创建索引...")
+            indexer.create_indices()
+            self.logger.info("开始索引数据...")
+            indexer.index_drugs(processed_drugs)
+            self.logger.info("索引更新完成")
             
         except Exception as e:
-            self.logger.error(f"Error in pipeline: {str(e)}")
+            self.logger.error(f"管道运行失败: {str(e)}")
             raise
 
+    def save_intermediate_results(self, processed_drugs: List[Dict], output_dir: str) -> None:
+        """保存中间结果
+        
+        Args:
+            processed_drugs: 处理后的药品列表
+            output_dir: 输出目录路径
+        """
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        # 保存处理后的数据
+        with open(output_path / 'processed_drugs.json', 'w', encoding='utf-8') as f:
+            json.dump(processed_drugs, f, ensure_ascii=False, indent=2)
+
 def main():
-    """Main function to run the drug pipeline"""
-    parser = argparse.ArgumentParser(description='Run drug processing pipeline')
-    parser.add_argument('--output-dir', type=str, help='Directory to save intermediate results')
-    parser.add_argument('--clear', action='store_true', help='Clear existing indices before processing')
+    """主函数"""
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='处理药品数据并建立ES索引')
+    parser.add_argument('--output-dir', type=str, help='输出目录路径，用于保存中间结果')
+    parser.add_argument('--clear', action='store_true', help='是否清空现有索引')
     args = parser.parse_args()
     
-    pipeline = DrugPipeline()
-    pipeline.run(output_dir=args.output_dir, clear_indices=args.clear)
+    try:
+        # 设置日志格式
+        setup_logging()
+        
+        # 从环境变量读取配置
+        mysql_url = (
+            f"mysql+mysqlconnector://{os.getenv('MYSQL_USER')}:"
+            f"{os.getenv('MYSQL_PASSWORD')}@{os.getenv('MYSQL_HOST', 'localhost')}:"
+            f"{os.getenv('MYSQL_PORT', '3306')}/{os.getenv('MYSQL_DB')}"
+        )
+        
+        es_config = {
+            'hosts': [os.getenv('ES_HOST', 'http://localhost:9200')],
+            'basic_auth': (
+                os.getenv('ES_USERNAME', 'elastic'),
+                os.getenv('ES_PASSWORD', 'changeme')
+            )
+        }
+        
+        # 初始化并运行管道
+        pipeline = DrugPipeline(mysql_url=mysql_url, es_config=es_config)
+        
+        # 运行管道
+        pipeline.run(
+            output_dir=args.output_dir,
+            clear_indices=args.clear
+        )
+        
+    except Exception as e:
+        logging.error(f"Pipeline execution failed: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     main()

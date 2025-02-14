@@ -7,14 +7,21 @@ import html
 class DrugNormalizer:
     """药品信息规范化处理类"""
     
-    def __init__(self):
-        """初始化规范化器"""
+    def __init__(self, category_tree: Dict[str, Dict] = None):
+        """初始化规范化器
+        
+        Args:
+            category_tree: 分类树字典，格式为 {category_id: {'category': str, 'parent_id': str}}
+        """
         # 常见的修饰词，可以根据需要扩展
         self.modifiers = [
             '本品', '药品', '该药', '此药',
             '适用于', '用于', '主要用于', '可用于',
             '能够', '可以', '建议', '推荐'
         ]
+        
+        # 保存分类树
+        self.category_tree = category_tree or {}
     
     def clean_text(self, text: str) -> str:
         """清理文本，移除HTML标签和特殊字符
@@ -166,7 +173,9 @@ class DrugNormalizer:
             'interactions': [],      
             'usage': '',
             'approval_number': '',
-            'details': []
+            'categories': [],       # 添加分类列表
+            'category_hierarchy': [],  # 添加分类层级
+            'details': []  # 改回数组格式
         }
         
         # 标签到字段的映射
@@ -207,7 +216,12 @@ class DrugNormalizer:
             '给药方式': 'usage',
             
             'approval_number': 'approval_number',
-            '批准文号': 'approval_number'
+            '批准文号': 'approval_number',
+            
+            'categories': 'categories',
+            '分类': 'categories',
+            '类别': 'categories',
+            '药品类别': 'categories'
         }
         
         def process_text_field(content: str) -> List[str]:
@@ -266,27 +280,64 @@ class DrugNormalizer:
                 if item.strip():
                     result['components'].append(item.strip())
         
+        # 处理详情数据
         for detail in details:
             if not isinstance(detail, dict):
                 continue
                 
-            tag = detail.get('tag', '').strip()
+            original_tag = detail.get('original_tag', '').strip()
+            normalized_tag = detail.get('normalized_tag', '').strip()
             content = detail.get('content', '').strip()
             
-            if not tag or not content:
+            if not original_tag or not normalized_tag or not content:
                 continue
             
-            # 保存原始详情
+            # 保存原始详情，使用原始tag
             result['details'].append({
-                'tag': tag,
+                'tag': original_tag,
                 'content': content  # 保持原始内容
             })
             
-            # 处理特定字段
-            field = tag_mapping.get(tag)
+            # 处理特定字段，使用标准化的tag
+            field = tag_mapping.get(original_tag)  # 使用原始tag查找映射
             if field:
                 if field == 'components':
                     process_components(content)
+                elif field == 'categories':
+                    # 处理分类信息
+                    cleaned_content = self.clean_text(content)
+                    if cleaned_content:
+                        # 在分类树中查找匹配的分类
+                        for cat_id, cat_info in self.category_tree.items():
+                            if cat_info['category'] and cat_info['category'] in cleaned_content:
+                                # 添加找到的分类
+                                result['categories'].append(cat_info['category'])
+                                
+                                # 构建分类层级
+                                hierarchy = {
+                                    'category': cat_info['category'],
+                                    'category_id': cat_id,
+                                    'parent_id': cat_info['parent_id'] if cat_info['parent_id'] != '0' else None
+                                }
+                                if hierarchy not in result['category_hierarchy']:
+                                    result['category_hierarchy'].append(hierarchy)
+                                
+                                # 添加父分类
+                                parent_id = cat_info['parent_id']
+                                while parent_id and parent_id != '0':
+                                    parent = self.category_tree.get(parent_id)
+                                    if parent:
+                                        parent_hierarchy = {
+                                            'category': parent['category'],
+                                            'category_id': parent_id,
+                                            'parent_id': parent['parent_id'] if parent['parent_id'] != '0' else None
+                                        }
+                                        if parent_hierarchy not in result['category_hierarchy']:
+                                            result['category_hierarchy'].append(parent_hierarchy)
+                                            result['categories'].append(parent['category'])
+                                        parent_id = parent['parent_id']
+                                    else:
+                                        break
                 elif field in ['indications', 'contraindications', 
                              'adverse_reactions', 'precautions', 'interactions']:
                     # 处理文本字段，保持语义完整性
@@ -299,7 +350,7 @@ class DrugNormalizer:
         
         # 对所有列表字段去重，但保持顺序
         for field in ['components', 'indications', 'contraindications', 
-                     'adverse_reactions', 'precautions', 'interactions']:
+                     'adverse_reactions', 'precautions', 'interactions', 'categories']:
             # 使用dict.fromkeys保持顺序的同时去重
             result[field] = list(dict.fromkeys(result[field]))
         
