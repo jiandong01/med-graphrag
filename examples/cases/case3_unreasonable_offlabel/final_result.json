@@ -1,0 +1,52 @@
+{
+    "analysis_result": {
+        "judgment": "不推荐的超适应症用药",
+        "confidence": 0.9,
+        "evidence_chain": {
+            "drug_label": {
+                "source": "奥氮平说明书",
+                "version": "2024版",
+                "evidence": [
+                    "获批适应症：精神分裂症和双相情感障碍",
+                    "未包含焦虑症相关适应症"
+                ]
+            },
+            "clinical_guidelines": {
+                "source": "中国焦虑障碍诊疗指南",
+                "version": "2023版",
+                "evidence": [
+                    "轻度焦虑首选SSRI类药物",
+                    "未推荐非典型抗精神病药物用于轻度焦虑"
+                ]
+            },
+            "safety_analysis": {
+                "source": "药物不良反应文献",
+                "evidence": [
+                    "长期使用可能导致代谢综合征",
+                    "存在体重增加风险",
+                    "可能出现嗜睡等不良反应"
+                ]
+            },
+            "benefit_risk_analysis": {
+                "conclusion": "风险大于获益",
+                "evidence": [
+                    "存在更安全有效的治疗选择",
+                    "不良反应风险与症状程度不相称"
+                ]
+            }
+        },
+        "recommendations": [
+            {
+                "action": "建议调整用药方案",
+                "alternatives": [
+                    {
+                        "drug_class": "SSRI",
+                        "examples": ["舍曲林", "帕罗西汀"],
+                        "evidence_level": "A",
+                        "guideline_support": "中国焦虑障碍诊疗指南推荐的一线用药"
+                    }
+                ]
+            }
+        ]
+    }
+}

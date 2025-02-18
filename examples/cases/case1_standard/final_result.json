@@ -1,0 +1,28 @@
+{
+    "analysis_result": {
+        "judgment": "标准适应症用药",
+        "confidence": 0.95,
+        "evidence_chain": {
+            "drug_label": {
+                "source": "阿莫西林说明书",
+                "version": "2024版",
+                "evidence": [
+                    "适应症：敏感菌所致的急性咽炎",
+                    "推荐剂量：0.5g，tid，疗程7-10天"
+                ]
+            },
+            "clinical_guidelines": {
+                "source": "中国急性上呼吸道感染诊疗指南",
+                "version": "2023版",
+                "evidence": [
+                    "链球菌性咽炎首选青霉素类抗生素治疗"
+                ]
+            },
+            "diagnosis_match": {
+                "disease": "急性链球菌性咽炎",
+                "confidence": 0.95,
+                "evidence": "临床诊断明确，症状特征匹配"
+            }
+        }
+    }
+}

@@ -1,0 +1,16 @@
+{
+    "disease": {
+        "standard_name": "焦虑症",
+        "normalized_id": "D001008",
+        "attributes": {
+            "severity": "轻度",
+            "symptoms": ["失眠"]
+        }
+    },
+    "drug": {
+        "standard_name": "奥氮平",
+        "normalized_id": "D000069635",
+        "form": "片剂",
+        "specification": "5mg"
+    }
+}

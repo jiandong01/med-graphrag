@@ -1,0 +1,13 @@
+{
+    "patient_info": {
+        "age": 45,
+        "gender": "female"
+    },
+    "diagnosis": "急性链球菌性咽炎，伴发热3天",
+    "prescription": {
+        "drug_name": "阿莫西林胶囊",
+        "dosage": "0.5g",
+        "frequency": "tid",
+        "duration": "7天"
+    }
+}

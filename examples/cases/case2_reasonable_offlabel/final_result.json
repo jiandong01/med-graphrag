@@ -1,0 +1,57 @@
+{
+    "analysis_result": {
+        "judgment": "合理超适应症用药",
+        "confidence": 0.85,
+        "evidence_chain": {
+            "drug_label": {
+                "source": "西地那非说明书",
+                "version": "2024版",
+                "evidence": [
+                    "获批适应症：原发性肺动脉高压",
+                    "作用机制：通过抑制PDE5增加cGMP水平，导致肺血管平滑肌舒张"
+                ]
+            },
+            "clinical_guidelines": {
+                "source": "欧洲呼吸学会指南",
+                "version": "2022版",
+                "evidence": [
+                    "推荐级别：IIa",
+                    "证据等级：B",
+                    "用于继发性肺动脉高压的治疗"
+                ]
+            },
+            "expert_consensus": {
+                "source": "中国肺纤维化诊疗专家共识",
+                "version": "2024版",
+                "evidence": [
+                    "对于合并肺动脉高压的IPF患者可考虑使用PDE5抑制剂"
+                ]
+            },
+            "clinical_trials": {
+                "source": "临床研究",
+                "evidence": [
+                    {
+                        "id": "NCT12345678",
+                        "phase": 3,
+                        "conclusion": "对继发性肺动脉高压患者有效且安全"
+                    }
+                ]
+            },
+            "mechanism_analysis": {
+                "similarity_score": 0.85,
+                "evidence": [
+                    "与原发性肺动脉高压共享NO-cGMP信号通路",
+                    "具有相似的血管舒张机制"
+                ]
+            }
+        },
+        "risk_assessment": {
+            "safety_level": "可接受",
+            "monitoring_suggestions": [
+                "定期监测肺功能",
+                "关注血压变化",
+                "注意药物相互作用"
+            ]
+        }
+    }
+}

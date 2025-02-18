@@ -1,0 +1,26 @@
+{
+    "diseases": [
+        {
+            "standard_name": "特发性肺纤维化",
+            "normalized_id": "D054990",
+            "attributes": {
+                "severity": "难治性",
+                "stage": "进展期"
+            }
+        },
+        {
+            "standard_name": "肺动脉高压",
+            "normalized_id": "D006976",
+            "attributes": {
+                "type": "继发性",
+                "primary_cause": "D054990"
+            }
+        }
+    ],
+    "drug": {
+        "standard_name": "西地那非",
+        "normalized_id": "D000069101",
+        "form": "片剂",
+        "specification": "20mg"
+    }
+}

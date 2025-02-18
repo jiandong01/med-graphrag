@@ -1,0 +1,11 @@
+{
+    "indication_match": {
+        "is_standard": true,
+        "match_type": "direct_match",
+        "evidence": {
+            "source": "drug_label",
+            "content": "适应症：敏感菌所致的急性咽炎...",
+            "confidence": 0.95
+        }
+    }
+}

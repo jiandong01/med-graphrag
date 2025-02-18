@@ -1,0 +1,17 @@
+{
+    "risk_analysis": {
+        "benefit_risk_ratio": "unfavorable",
+        "concerns": [
+            {
+                "type": "safety",
+                "description": "代谢综合征风险",
+                "severity": "moderate"
+            },
+            {
+                "type": "appropriateness",
+                "description": "存在更适合的一线治疗选择",
+                "evidence": "临床指南推荐SSRI类药物"
+            }
+        ]
+    }
+}

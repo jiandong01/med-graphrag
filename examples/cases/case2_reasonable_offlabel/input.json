@@ -1,0 +1,13 @@
+{
+    "patient_info": {
+        "age": 62,
+        "gender": "male"
+    },
+    "diagnosis": "难治性特发性肺纤维化，伴有继发性肺动脉高压",
+    "prescription": {
+        "drug_name": "西地那非片",
+        "dosage": "20mg",
+        "frequency": "tid",
+        "duration": "长期"
+    }
+}

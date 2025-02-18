@@ -1,0 +1,13 @@
+{
+    "patient_info": {
+        "age": 35,
+        "gender": "female"
+    },
+    "diagnosis": "轻度焦虑症，伴失眠",
+    "prescription": {
+        "drug_name": "奥氮平片",
+        "dosage": "5mg",
+        "frequency": "qn",
+        "duration": "2周"
+    }
+}

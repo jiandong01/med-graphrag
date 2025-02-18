@@ -1,0 +1,16 @@
+{
+    "disease": {
+        "standard_name": "急性链球菌性咽炎",
+        "normalized_id": "D001959",
+        "attributes": {
+            "duration": "3天",
+            "symptoms": ["发热"]
+        }
+    },
+    "drug": {
+        "standard_name": "阿莫西林",
+        "normalized_id": "M123456",
+        "form": "胶囊",
+        "specification": "0.5g"
+    }
+}
