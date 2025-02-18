@@ -1,16 +1,54 @@
 {
+    "analysis_session": {
+        "id": "session_20250218_001",
+        "timestamp": "2025-02-18T14:35:27+08:00"
+    },
+    "entity_recognition_id": "er_20250218_001",
     "disease": {
-        "standard_name": "急性链球菌性咽炎",
-        "normalized_id": "D001959",
+        "id": "disease_acute_strep_pharyngitis",
+        "name": "急性链球菌性咽炎",
+        "type": "disease",
         "attributes": {
             "duration": "3天",
             "symptoms": ["发热"]
-        }
+        },
+        "confidence_score": 0.95,
+        "sources": [
+            {
+                "drug_id": "amoxicillin_capsule_001",
+                "extraction_time": "2025-02-18T14:35:27+08:00",
+                "confidence": 0.95
+            }
+        ],
+        "first_seen": "2025-02-18T14:35:27+08:00",
+        "last_updated": "2025-02-18T14:35:27+08:00",
+        "mention_count": 1
     },
     "drug": {
-        "standard_name": "阿莫西林",
-        "normalized_id": "M123456",
-        "form": "胶囊",
-        "specification": "0.5g"
+        "id": "amoxicillin_capsule_001",
+        "name": "阿莫西林胶囊",
+        "spec": "0.5g",
+        "categories": [
+            "青霉素类抗生素",
+            "抗细菌药物"
+        ],
+        "category_hierarchy": [
+            {
+                "category": "青霉素类抗生素",
+                "category_id": "penicillin_001",
+                "parent_id": "antibacterial_001"
+            },
+            {
+                "category": "抗细菌药物",
+                "category_id": "antibacterial_001",
+                "parent_id": "1"
+            }
+        ],
+        "components": [
+            "本品主要成份为阿莫西林，每粒含阿莫西林0.5g"
+        ],
+        "indications": [
+            "敏感菌所致的急性咽炎、扁桃体炎等上呼吸道感染"
+        ]
     }
 }

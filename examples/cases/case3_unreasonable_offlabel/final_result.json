@@ -1,52 +1,70 @@
 {
-    "analysis_result": {
-        "judgment": "不推荐的超适应症用药",
-        "confidence": 0.9,
-        "evidence_chain": {
-            "drug_label": {
-                "source": "奥氮平说明书",
-                "version": "2024版",
-                "evidence": [
-                    "获批适应症：精神分裂症和双相情感障碍",
-                    "未包含焦虑症相关适应症"
-                ]
-            },
-            "clinical_guidelines": {
-                "source": "中国焦虑障碍诊疗指南",
-                "version": "2023版",
-                "evidence": [
-                    "轻度焦虑首选SSRI类药物",
-                    "未推荐非典型抗精神病药物用于轻度焦虑"
-                ]
-            },
-            "safety_analysis": {
-                "source": "药物不良反应文献",
-                "evidence": [
-                    "长期使用可能导致代谢综合征",
-                    "存在体重增加风险",
-                    "可能出现嗜睡等不良反应"
-                ]
-            },
-            "benefit_risk_analysis": {
-                "conclusion": "风险大于获益",
-                "evidence": [
-                    "存在更安全有效的治疗选择",
-                    "不良反应风险与症状程度不相称"
-                ]
-            }
+    "analysis_session": {
+        "id": "session_20250218_003",
+        "timestamp": "2025-02-18T15:29:17+08:00"
+    },
+    "final_result_id": "fr_20250218_003",
+    "evidence_chain": {
+        "entity_recognition_id": "er_20250218_003",
+        "indication_analysis_id": "ia_20250218_003",
+        "analysis_id": "a_20250218_003"
+    },
+    "final_judgment": {
+        "category": "不合理超说明书用药",
+        "confidence": 0.95,
+        "explanation": "轻度焦虑症使用奥氮平缺乏循证医学证据支持，且存在更适合的治疗选择",
+        "recommendation": "建议调整用药方案：\n1. 考虑使用SSRIs类药物\n2. 可选择短效苯二氮䓬类药物处理失眠症状\n3. 建议同时进行心理治疗"
+    },
+    "summary": {
+        "indication_match": {
+            "result": "不匹配",
+            "confidence": 0.95,
+            "notes": "轻度焦虑症不在奥氮平适应症范围内"
         },
-        "recommendations": [
+        "similarity_score": 0.35,
+        "evidence_strength": 0.90,
+        "benefit_risk_ratio": 0.30
+    },
+    "alternative_plan": {
+        "first_line_options": [
             {
-                "action": "建议调整用药方案",
-                "alternatives": [
-                    {
-                        "drug_class": "SSRI",
-                        "examples": ["舍曲林", "帕罗西汀"],
-                        "evidence_level": "A",
-                        "guideline_support": "中国焦虑障碍诊疗指南推荐的一线用药"
-                    }
-                ]
+                "drug_category": "SSRIs",
+                "examples": ["帕罗西汀", "艾司西酞普兰"],
+                "rationale": "具有良好的循证医学证据支持"
+            },
+            {
+                "drug_category": "SNRIs",
+                "examples": ["文拉法辛"],
+                "rationale": "对焦虑和躯体症状均有效"
             }
+        ],
+        "adjunctive_options": [
+            {
+                "drug_category": "苯二氮䓬类",
+                "examples": ["阿普唑仑"],
+                "duration": "短期",
+                "rationale": "用于改善失眠症状"
+            }
+        ],
+        "non_pharmacological": [
+            "认知行为治疗",
+            "放松训练",
+            "正念疗法"
         ]
+    },
+    "monitoring_plan": {
+        "if_continue_current": {
+            "vital_indicators": [
+                "嗜睡程度",
+                "体重",
+                "血糖"
+            ],
+            "follow_up_schedule": "每周一次",
+            "discontinuation_criteria": [
+                "出现明显不良反应",
+                "症状无改善",
+                "患者依从性差"
+            ]
+        }
     }
 }

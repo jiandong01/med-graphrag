@@ -1,26 +1,67 @@
 {
-    "diseases": [
-        {
-            "standard_name": "特发性肺纤维化",
-            "normalized_id": "D054990",
-            "attributes": {
-                "severity": "难治性",
-                "stage": "进展期"
-            }
+    "analysis_session": {
+        "id": "session_20250218_002",
+        "timestamp": "2025-02-18T14:44:33+08:00"
+    },
+    "entity_recognition_id": "er_20250218_002",
+    "disease": {
+        "id": "disease_ipf_pah",
+        "name": "特发性肺纤维化伴继发性肺动脉高压",
+        "type": "disease",
+        "attributes": {
+            "severity": "难治性",
+            "complications": ["肺动脉高压"]
         },
-        {
-            "standard_name": "肺动脉高压",
-            "normalized_id": "D006976",
-            "attributes": {
-                "type": "继发性",
-                "primary_cause": "D054990"
+        "sub_diseases": [
+            {
+                "id": "disease_ipf",
+                "name": "特发性肺纤维化",
+                "type": "primary"
+            },
+            {
+                "id": "disease_pah",
+                "name": "肺动脉高压",
+                "type": "secondary"
             }
-        }
-    ],
+        ],
+        "confidence_score": 0.95,
+        "sources": [
+            {
+                "drug_id": "sildenafil_tablet_001",
+                "extraction_time": "2025-02-18T14:44:33+08:00",
+                "confidence": 0.95
+            }
+        ],
+        "first_seen": "2025-02-18T14:44:33+08:00",
+        "last_updated": "2025-02-18T14:44:33+08:00",
+        "mention_count": 1
+    },
     "drug": {
-        "standard_name": "西地那非",
-        "normalized_id": "D000069101",
-        "form": "片剂",
-        "specification": "20mg"
+        "id": "sildenafil_tablet_001",
+        "name": "西地那非片",
+        "spec": "20mg",
+        "categories": [
+            "磷酸二酯酶5抑制剂",
+            "血管扩张剂"
+        ],
+        "category_hierarchy": [
+            {
+                "category": "磷酸二酯酶5抑制剂",
+                "category_id": "pde5i_001",
+                "parent_id": "vasodilator_001"
+            },
+            {
+                "category": "血管扩张剂",
+                "category_id": "vasodilator_001",
+                "parent_id": "1"
+            }
+        ],
+        "components": [
+            "本品主要成份为西地那非，每片含西地那非20mg"
+        ],
+        "indications": [
+            "肺动脉高压",
+            "勃起功能障碍"
+        ]
     }
 }

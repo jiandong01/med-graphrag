@@ -1,28 +1,28 @@
 {
-    "analysis_result": {
-        "judgment": "标准适应症用药",
+    "analysis_session": {
+        "id": "session_20250218_001",
+        "timestamp": "2025-02-18T14:35:27+08:00"
+    },
+    "final_result_id": "fr_20250218_001",
+    "evidence_chain": {
+        "entity_recognition_id": "er_20250218_001",
+        "indication_analysis_id": "ia_20250218_001",
+        "analysis_id": "a_20250218_001"
+    },
+    "final_judgment": {
+        "category": "标准适应症用药",
         "confidence": 0.95,
-        "evidence_chain": {
-            "drug_label": {
-                "source": "阿莫西林说明书",
-                "version": "2024版",
-                "evidence": [
-                    "适应症：敏感菌所致的急性咽炎",
-                    "推荐剂量：0.5g，tid，疗程7-10天"
-                ]
-            },
-            "clinical_guidelines": {
-                "source": "中国急性上呼吸道感染诊疗指南",
-                "version": "2023版",
-                "evidence": [
-                    "链球菌性咽炎首选青霉素类抗生素治疗"
-                ]
-            },
-            "diagnosis_match": {
-                "disease": "急性链球菌性咽炎",
-                "confidence": 0.95,
-                "evidence": "临床诊断明确，症状特征匹配"
-            }
-        }
-    }
+        "explanation": "该用药方案完全符合药品说明书规定的适应症，且用法用量合理",
+        "recommendation": "建议按当前方案用药"
+    },
+    "summary": {
+        "indication_match": {
+            "result": "直接匹配",
+            "confidence": 0.95
+        },
+        "similarity_score": 0.925,
+        "evidence_strength": 0.90,
+        "benefit_risk_ratio": 0.90
+    },
+    "timestamp": "2025-02-18T14:16:03+08:00"
 }

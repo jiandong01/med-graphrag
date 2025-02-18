@@ -1,16 +1,39 @@
 {
-    "disease": {
-        "standard_name": "焦虑症",
-        "normalized_id": "D001008",
-        "attributes": {
-            "severity": "轻度",
-            "symptoms": ["失眠"]
-        }
+    "analysis_session": {
+        "id": "session_20250218_003",
+        "timestamp": "2025-02-18T15:24:49+08:00"
     },
-    "drug": {
-        "standard_name": "奥氮平",
-        "normalized_id": "D000069635",
-        "form": "片剂",
-        "specification": "5mg"
+    "entity_recognition_id": "er_20250218_003",
+    "patient": {
+        "demographics": {
+            "age": 35,
+            "gender": "female"
+        },
+        "conditions": [
+            {
+                "name": "焦虑症",
+                "severity": "轻度",
+                "icd_code": "F41.1",
+                "attributes": ["轻度", "原发性"]
+            },
+            {
+                "name": "失眠",
+                "icd_code": "F51.0",
+                "attributes": ["继发性"]
+            }
+        ]
+    },
+    "medication": {
+        "drug": {
+            "name": "奥氮平",
+            "category": "非典型抗精神病药",
+            "atc_code": "N05AH03"
+        },
+        "usage": {
+            "dosage": "5mg",
+            "frequency": "qn",
+            "duration": "2周",
+            "route": "口服"
+        }
     }
 }

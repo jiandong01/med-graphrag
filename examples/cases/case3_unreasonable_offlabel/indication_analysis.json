@@ -1,0 +1,64 @@
+{
+    "analysis_session": {
+        "id": "session_20250218_003",
+        "timestamp": "2025-02-18T15:29:17+08:00"
+    },
+    "indication_analysis_id": "ia_20250218_003",
+    "entity_recognition_ref": "er_20250218_003",
+    "drug_indications": {
+        "approved_indications": [
+            {
+                "condition": "精神分裂症",
+                "usage": {
+                    "min_dosage": "5mg",
+                    "max_dosage": "20mg",
+                    "frequency": "qd",
+                    "duration": "需要时长期"
+                }
+            },
+            {
+                "condition": "双相情感障碍躁狂发作",
+                "usage": {
+                    "min_dosage": "10mg",
+                    "max_dosage": "20mg",
+                    "frequency": "qd",
+                    "duration": "急性期"
+                }
+            }
+        ],
+        "contraindications": [
+            "对奥氮平过敏",
+            "青光眼",
+            "妊娠期"
+        ]
+    },
+    "indication_match": {
+        "match_result": "不匹配",
+        "match_details": [
+            {
+                "aspect": "适应症",
+                "status": "不匹配",
+                "explanation": "轻度焦虑症不在奥氮平获批适应症范围内"
+            },
+            {
+                "aspect": "用药剂量",
+                "status": "合理",
+                "explanation": "5mg在药品说明书推荐剂量范围内"
+            },
+            {
+                "aspect": "用药时间",
+                "status": "合理",
+                "explanation": "短期使用2周属于试探性用药范围"
+            }
+        ],
+        "confidence": 0.95
+    },
+    "usage_evaluation": {
+        "appropriateness": "不适当",
+        "reasons": [
+            "轻度焦虑症有其他更适合的治疗选择",
+            "抗精神病药物不建议作为焦虑症的一线用药",
+            "可能存在过度用药风险"
+        ]
+    }
+}

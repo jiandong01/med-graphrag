@@ -1,0 +1,78 @@
+{
+    "analysis_session": {
+        "id": "session_20250218_002",
+        "timestamp": "2025-02-18T14:44:33+08:00"
+    },
+    "analysis_id": "a_20250218_002",
+    "entity_recognition_ref": "er_20250218_002",
+    "indication_analysis_ref": "ia_20250218_002",
+    "similarity_analysis": {
+        "mechanism": {
+            "score": 0.85,
+            "explanation": "西地那非通过抑制PDE5来改善肺动脉高压，同时对特发性肺纤维化患者的运动耐量和生活质量有潜在改善作用"
+        },
+        "clinical": {
+            "score": 0.80,
+            "explanation": "临床研究表明西地那非可改善IPF合并PAH患者的运动能力和血流动力学指标"
+        }
+    },
+    "evidence_analysis": {
+        "drug_label": {
+            "content": "适应症：治疗肺动脉高压，改善运动能力和血流动力学指标",
+            "confidence": 0.90,
+            "extraction_time": "2025-02-18T14:44:33+08:00"
+        },
+        "clinical_guidelines": {
+            "guideline_id": "guideline_002",
+            "section_id": "rec_002",
+            "content": "对于IPF合并PAH的患者，可考虑使用PAH靶向治疗药物，但需要严密监测",
+            "confidence": 0.85,
+            "extraction_time": "2025-02-18T14:44:33+08:00"
+        },
+        "expert_consensus": {
+            "consensus_id": "consensus_002",
+            "content": "特发性肺纤维化合并肺动脉高压时，在权衡获益风险后可考虑使用西地那非等PAH靶向药物",
+            "confidence": 0.80,
+            "extraction_time": "2025-02-18T14:44:33+08:00"
+        }
+    },
+    "risk_assessment": {
+        "benefit_factors": [
+            {
+                "factor": "改善肺动脉高压",
+                "score": 0.85,
+                "evidence": "临床研究显示可显著改善肺动脉压力和心输出量",
+                "source": {
+                    "consensus_id": "consensus_002",
+                    "evidence_type": "clinical_trials"
+                }
+            },
+            {
+                "factor": "改善运动耐量",
+                "score": 0.80,
+                "evidence": "可改善6分钟步行距离和呼吸困难症状",
+                "source": {
+                    "consensus_id": "consensus_002",
+                    "evidence_type": "clinical_trials"
+                }
+            }
+        ],
+        "risk_factors": [
+            {
+                "factor": "对原发病进展的不确定性",
+                "score": 0.30,
+                "evidence": "目前缺乏长期安全性数据",
+                "source": {
+                    "guideline_id": "guideline_002",
+                    "evidence_type": "expert_opinion"
+                }
+            },
+            {
+                "factor": "不良反应",
+                "score": 0.20,
+                "evidence": "可能出现头痛、面部潮红等不良反应，但总体耐受性良好"
+            }
+        ],
+        "benefit_risk_ratio": 0.75
+    }
+}

@@ -1,11 +1,31 @@
 {
+    "analysis_session": {
+        "id": "session_20250218_001",
+        "timestamp": "2025-02-18T14:35:27+08:00"
+    },
+    "indication_analysis_id": "ia_20250218_001",
+    "entity_recognition_ref": "er_20250218_001",
     "indication_match": {
         "is_standard": true,
         "match_type": "direct_match",
-        "evidence": {
-            "source": "drug_label",
-            "content": "适应症：敏感菌所致的急性咽炎...",
-            "confidence": 0.95
+        "matched_indication": "敏感菌所致的急性咽炎、扁桃体炎等上呼吸道感染",
+        "confidence": 0.95
+    },
+    "usage_match": {
+        "dosage": {
+            "prescribed": "0.5g",
+            "standard": "0.5g",
+            "match": true
+        },
+        "frequency": {
+            "prescribed": "tid",
+            "standard": "tid",
+            "match": true
+        },
+        "duration": {
+            "prescribed": "7天",
+            "standard": "7-10天",
+            "match": true
         }
     }
 }

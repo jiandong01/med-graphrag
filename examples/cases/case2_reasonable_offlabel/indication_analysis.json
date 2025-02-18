@@ -1,0 +1,32 @@
+{
+    "analysis_session": {
+        "id": "session_20250218_002",
+        "timestamp": "2025-02-18T14:44:33+08:00"
+    },
+    "indication_analysis_id": "ia_20250218_002",
+    "entity_recognition_ref": "er_20250218_002",
+    "indication_match": {
+        "is_standard": false,
+        "match_type": "partial_match",
+        "matched_indication": "肺动脉高压",
+        "confidence": 0.85,
+        "notes": "适应症仅覆盖继发性疾病（肺动脉高压），但未覆盖原发病（特发性肺纤维化）"
+    },
+    "usage_match": {
+        "dosage": {
+            "prescribed": "20mg",
+            "standard": "20mg",
+            "match": true
+        },
+        "frequency": {
+            "prescribed": "tid",
+            "standard": "tid",
+            "match": true
+        },
+        "duration": {
+            "prescribed": "长期",
+            "standard": "根据病情调整",
+            "match": true
+        }
+    }
+}

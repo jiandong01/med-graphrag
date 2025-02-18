@@ -1,0 +1,60 @@
+{
+    "analysis_session": {
+        "id": "session_20250218_001",
+        "timestamp": "2025-02-18T14:35:27+08:00"
+    },
+    "analysis_id": "a_20250218_001",
+    "entity_recognition_ref": "er_20250218_001",
+    "indication_analysis_ref": "ia_20250218_001",
+    "similarity_analysis": {
+        "mechanism": {
+            "score": 0.95,
+            "explanation": "阿莫西林通过抑制细菌细胞壁合成发挥抗菌作用，对链球菌等革兰氏阳性菌高度敏感"
+        },
+        "clinical": {
+            "score": 0.90,
+            "explanation": "临床实践中阿莫西林是治疗链球菌性咽炎的一线用药选择"
+        }
+    },
+    "evidence_analysis": {
+        "drug_label": {
+            "content": "适应症：敏感菌所致的急性咽炎",
+            "confidence": 0.95,
+            "extraction_time": "2025-02-18T14:35:27+08:00"
+        },
+        "clinical_guidelines": {
+            "guideline_id": "guideline_001",
+            "section_id": "rec_001",
+            "content": "链球菌性咽炎首选青霉素类抗生素治疗",
+            "confidence": 0.90,
+            "extraction_time": "2025-02-18T14:35:27+08:00"
+        },
+        "expert_consensus": {
+            "consensus_id": "consensus_001",
+            "content": "阿莫西林是治疗链球菌性咽炎的推荐用药",
+            "confidence": 0.85,
+            "extraction_time": "2025-02-18T14:35:27+08:00"
+        }
+    },
+    "risk_assessment": {
+        "benefit_factors": [
+            {
+                "factor": "治疗有效性",
+                "score": 0.95,
+                "evidence": "临床研究显示对链球菌性咽炎有效率>90%",
+                "source": {
+                    "consensus_id": "consensus_001",
+                    "evidence_type": "clinical_trials"
+                }
+            }
+        ],
+        "risk_factors": [
+            {
+                "factor": "不良反应",
+                "score": 0.15,
+                "evidence": "偶见胃肠道反应，过敏反应发生率低"
+            }
+        ],
+        "benefit_risk_ratio": 0.90
+    }
+}

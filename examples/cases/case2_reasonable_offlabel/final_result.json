@@ -1,56 +1,52 @@
 {
-    "analysis_result": {
-        "judgment": "合理超适应症用药",
+    "analysis_session": {
+        "id": "session_20250218_002",
+        "timestamp": "2025-02-18T15:09:32+08:00"
+    },
+    "final_result_id": "fr_20250218_002",
+    "evidence_chain": {
+        "entity_recognition_id": "er_20250218_002",
+        "indication_analysis_id": "ia_20250218_002",
+        "analysis_id": "a_20250218_002"
+    },
+    "final_judgment": {
+        "category": "合理超说明书用药",
         "confidence": 0.85,
-        "evidence_chain": {
-            "drug_label": {
-                "source": "西地那非说明书",
-                "version": "2024版",
-                "evidence": [
-                    "获批适应症：原发性肺动脉高压",
-                    "作用机制：通过抑制PDE5增加cGMP水平，导致肺血管平滑肌舒张"
-                ]
-            },
-            "clinical_guidelines": {
-                "source": "欧洲呼吸学会指南",
-                "version": "2022版",
-                "evidence": [
-                    "推荐级别：IIa",
-                    "证据等级：B",
-                    "用于继发性肺动脉高压的治疗"
-                ]
-            },
-            "expert_consensus": {
-                "source": "中国肺纤维化诊疗专家共识",
-                "version": "2024版",
-                "evidence": [
-                    "对于合并肺动脉高压的IPF患者可考虑使用PDE5抑制剂"
-                ]
-            },
-            "clinical_trials": {
-                "source": "临床研究",
-                "evidence": [
-                    {
-                        "id": "NCT12345678",
-                        "phase": 3,
-                        "conclusion": "对继发性肺动脉高压患者有效且安全"
-                    }
-                ]
-            },
-            "mechanism_analysis": {
-                "similarity_score": 0.85,
-                "evidence": [
-                    "与原发性肺动脉高压共享NO-cGMP信号通路",
-                    "具有相似的血管舒张机制"
-                ]
-            }
+        "explanation": "虽然超出药品说明书范围，但有充分的临床证据支持在特发性肺纤维化合并肺动脉高压患者中使用",
+        "recommendation": "建议用药，但需要：\n1. 密切监测疗效和不良反应\n2. 定期评估获益风险比\n3. 加强随访，关注长期安全性"
+    },
+    "summary": {
+        "indication_match": {
+            "result": "部分匹配",
+            "confidence": 0.85,
+            "notes": "匹配继发疾病(PAH)但未覆盖原发病(IPF)"
         },
-        "risk_assessment": {
-            "safety_level": "可接受",
-            "monitoring_suggestions": [
-                "定期监测肺功能",
-                "关注血压变化",
-                "注意药物相互作用"
+        "similarity_score": 0.825,
+        "evidence_strength": 0.85,
+        "benefit_risk_ratio": 0.75
+    },
+    "monitoring_plan": {
+        "efficacy_indicators": [
+            "肺动脉压力",
+            "6分钟步行距离",
+            "呼吸困难评分",
+            "生活质量评分"
+        ],
+        "safety_monitoring": [
+            "肝肾功能",
+            "血压",
+            "不良反应观察"
+        ],
+        "follow_up_schedule": "首月每周随访一次，后续每月随访一次",
+        "adjustment_criteria": {
+            "dose_reduction": [
+                "出现严重不良反应",
+                "肝功能异常"
+            ],
+            "discontinuation": [
+                "原发病明显进展",
+                "不能耐受的不良反应",
+                "无明显临床获益"
             ]
         }
     }

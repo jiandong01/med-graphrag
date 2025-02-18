@@ -1,0 +1,82 @@
+{
+    "analysis_session": {
+        "id": "session_20250218_003",
+        "timestamp": "2025-02-18T15:29:17+08:00"
+    },
+    "analysis_id": "a_20250218_003",
+    "entity_recognition_ref": "er_20250218_003",
+    "indication_analysis_ref": "ia_20250218_003",
+    "similarity_analysis": {
+        "mechanism": {
+            "score": 0.3,
+            "explanation": "奥氮平作为非典型抗精神病药，其作用机制与焦虑症的病理生理机制相关性较低"
+        },
+        "clinical": {
+            "score": 0.4,
+            "explanation": "虽然有个别病例报道在难治性焦虑中使用，但缺乏高质量临床研究支持"
+        }
+    },
+    "evidence_analysis": {
+        "drug_label": {
+            "content": "主要用于精神分裂症和双相情感障碍的治疗",
+            "confidence": 0.95,
+            "extraction_time": "2025-02-18T15:29:17+08:00"
+        },
+        "clinical_guidelines": {
+            "guideline_id": "guideline_003",
+            "section_id": "rec_003",
+            "content": "焦虑症治疗应首选SSRIs类药物，不推荐常规使用抗精神病药物",
+            "confidence": 0.90,
+            "extraction_time": "2025-02-18T15:29:17+08:00"
+        },
+        "expert_consensus": {
+            "consensus_id": "consensus_003",
+            "content": "轻中度焦虑症应优先考虑SSRIs、SNRIs等抗抑郁药物，抗精神病药物仅用于特殊情况",
+            "confidence": 0.90,
+            "extraction_time": "2025-02-18T15:29:17+08:00"
+        }
+    },
+    "risk_assessment": {
+        "benefit_factors": [
+            {
+                "factor": "可能改善睡眠",
+                "score": 0.6,
+                "evidence": "奥氮平具有镇静作用",
+                "source": {
+                    "guideline_id": "guideline_003",
+                    "evidence_type": "pharmacological_property"
+                }
+            }
+        ],
+        "risk_factors": [
+            {
+                "factor": "过度镇静",
+                "score": 0.7,
+                "evidence": "可能导致日间嗜睡，影响工作学习",
+                "source": {
+                    "guideline_id": "guideline_003",
+                    "evidence_type": "adverse_effects"
+                }
+            },
+            {
+                "factor": "代谢影响",
+                "score": 0.6,
+                "evidence": "可能导致体重增加和血糖异常",
+                "source": {
+                    "consensus_id": "consensus_003",
+                    "evidence_type": "long_term_safety"
+                }
+            },
+            {
+                "factor": "依赖风险",
+                "score": 0.4,
+                "evidence": "长期使用可能产生依赖性",
+                "source": {
+                    "guideline_id": "guideline_003",
+                    "evidence_type": "safety_warning"
+                }
+            }
+        ],
+        "benefit_risk_ratio": 0.3
+    }
+}
