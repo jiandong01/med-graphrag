@@ -1,59 +1,56 @@
-"""疾病索引处理器"""
+"""疾病索引管理"""
 
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Any, Optional
 
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
 from tqdm import tqdm
 
-from src.indication.disease_mapping import get_disease_mapping
+from src.utils import get_elastic_client
+from src.indication.es_mappings import DISEASE_MAPPING
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-class DiseaseIndexer:
-    """疾病索引处理器"""
+class DiseaseManager:
+    """疾病管理器 - 处理疾病数据的索引和查询"""
     
-    def __init__(self, es_config: Dict[str, Any]):
+    def __init__(self, es: Elasticsearch = None):
         """初始化
         
         Args:
-            es_config: Elasticsearch配置
+            es: Elasticsearch客户端实例
         """
-        self.es_config = es_config
-        self.es_client = Elasticsearch(**es_config)
-        self.logger = logging.getLogger(__name__)
-        
-        # 设置ES传输日志级别为WARNING，减少输出
-        logging.getLogger('elastic_transport.transport').setLevel(logging.WARNING)
+        self.es = es or get_elastic_client()
+        self.index_name = "diseases"
     
-    def create_indices(self, clear_existing: bool = False) -> None:
-        """创建或更新索引
+    def create_index(self, clear_existing: bool = False) -> None:
+        """创建或更新疾病索引
         
         Args:
             clear_existing: 是否清除已存在的索引
         """
-        index_name = "diseases"
-        
         try:
             # 如果需要清除已存在的索引
-            if clear_existing and self.es_client.indices.exists(index=index_name):
-                self.es_client.indices.delete(index=index_name)
-                self.logger.info(f"已删除索引: {index_name}")
+            if clear_existing and self.es.indices.exists(index=self.index_name):
+                self.es.indices.delete(index=self.index_name)
+                logger.info(f"已删除索引: {self.index_name}")
             
             # 创建新索引
-            if not self.es_client.indices.exists(index=index_name):
-                self.es_client.indices.create(
-                    index=index_name,
-                    body=get_disease_mapping(),
+            if not self.es.indices.exists(index=self.index_name):
+                self.es.indices.create(
+                    index=self.index_name,
+                    body=DISEASE_MAPPING,
                     request_timeout=300
                 )
-                self.logger.info(f"已创建索引: {index_name}")
+                logger.info(f"已创建索引: {self.index_name}")
             
         except Exception as e:
-            self.logger.error(f"创建索引时发生错误: {str(e)}")
+            logger.error(f"创建索引时发生错误: {str(e)}")
             raise
     
     def process_diseases(self, data_dir: str) -> List[Dict[str, Any]]:
@@ -65,7 +62,7 @@ class DiseaseIndexer:
         Returns:
             List[Dict[str, Any]]: 处理后的疾病文档列表
         """
-        self.logger.info("开始处理疾病数据...")
+        logger.info("开始处理疾病数据...")
         processed_diseases = {}  # 用于去重和合并相同疾病的信息
         
         try:
@@ -126,27 +123,40 @@ class DiseaseIndexer:
                                 if disease.get('confidence_score', 0.0) > existing['confidence_score']:
                                     existing['confidence_score'] = disease['confidence_score']
                             
-                            # 添加来源信息
+                            # 添加来源信息（去重）
                             if drug_id and extraction_time:
-                                processed_diseases[disease_name]['sources'].append({
-                                    'drug_id': drug_id,
-                                    'extraction_time': extraction_time,
-                                    'confidence': confidence
-                                })
+                                # 检查是否已存在相同的 drug_id
+                                source_exists = False
+                                for source in processed_diseases[disease_name]['sources']:
+                                    if source['drug_id'] == drug_id:
+                                        source_exists = True
+                                        # 如果现有source的时间更早，则更新为新的时间和置信度
+                                        if extraction_time > source['extraction_time']:
+                                            source['extraction_time'] = extraction_time
+                                            source['confidence'] = confidence
+                                        break
+                                
+                                # 如果不存在相同的drug_id，则添加新的source
+                                if not source_exists:
+                                    processed_diseases[disease_name]['sources'].append({
+                                        'drug_id': drug_id,
+                                        'extraction_time': extraction_time,
+                                        'confidence': confidence
+                                    })
                 
                 except Exception as e:
-                    self.logger.error(f"处理文件 {json_file} 时发生错误: {str(e)}")
+                    logger.error(f"处理文件 {json_file} 时发生错误: {str(e)}")
             
             # 转换为列表
             diseases_list = list(processed_diseases.values())
             
-            self.logger.info("疾病处理完成:")
-            self.logger.info(f"- 总疾病数: {len(diseases_list)}")
+            logger.info("疾病处理完成:")
+            logger.info(f"- 总疾病数: {len(diseases_list)}")
             
             return diseases_list
             
         except Exception as e:
-            self.logger.error(f"处理疾病数据时发生错误: {str(e)}")
+            logger.error(f"处理疾病数据时发生错误: {str(e)}")
             raise
     
     def _merge_disease_lists(self, existing_list: List[Dict], new_list: List[Dict]) -> None:
@@ -174,14 +184,14 @@ class DiseaseIndexer:
             diseases: 疾病文档列表
             batch_size: 批量索引大小
         """
-        self.logger.info("开始索引疾病数据...")
+        logger.info("开始索引疾病数据...")
         
         try:
             # 准备批量索引的操作
             actions = []
             for disease in diseases:
                 action = {
-                    "_index": "diseases",
+                    "_index": self.index_name,
                     "_id": disease['id'],
                     "_source": disease
                 }
@@ -189,22 +199,22 @@ class DiseaseIndexer:
             
             # 执行批量索引
             success, failed = bulk(
-                self.es_client,
+                self.es,
                 actions,
                 chunk_size=batch_size,
                 request_timeout=300,
-                refresh=False  # 禁用实时刷新以提高性能
+                refresh=True  # 立即刷新以便搜索
             )
             
-            self.logger.info("索引完成:")
-            self.logger.info(f"- 成功: {success} 个文档")
+            logger.info("索引完成:")
+            logger.info(f"- 成功: {success} 个文档")
             if failed:
-                self.logger.warning(f"- 失败: {len(failed)} 个文档")
+                logger.warning(f"- 失败: {len(failed)} 个文档")
             
         except Exception as e:
-            self.logger.error(f"索引疾病数据时发生错误: {str(e)}")
+            logger.error(f"索引疾病数据时发生错误: {str(e)}")
             raise
-        
+    
     def search_diseases(self, query: str, size: int = 10) -> List[Dict[str, Any]]:
         """搜索疾病
         
@@ -218,38 +228,33 @@ class DiseaseIndexer:
         try:
             # 构建搜索查询
             search_body = {
+                "size": size,
                 "query": {
                     "multi_match": {
                         "query": query,
                         "fields": ["name^3", "sub_diseases.name^2", "related_diseases.name"],
                         "type": "best_fields",
-                        "tie_breaker": 0.3
+                        "operator": "and"
                     }
                 },
                 "sort": [
-                    "_score",
-                    {"mention_count": "desc"},
-                    {"confidence_score": "desc"}
+                    {"confidence_score": {"order": "desc"}},
+                    {"mention_count": {"order": "desc"}}
                 ]
             }
             
             # 执行搜索
-            response = self.es_client.search(
-                index="diseases",
-                body=search_body,
-                size=size
+            results = self.es.search(
+                index=self.index_name,
+                body=search_body
             )
             
-            # 处理结果
-            hits = response['hits']['hits']
-            results = []
-            for hit in hits:
-                result = hit['_source']
-                result['score'] = hit['_score']
-                results.append(result)
+            # 提取结果
+            hits = results['hits']['hits']
+            diseases = [hit['_source'] for hit in hits]
             
-            return results
+            return diseases
             
         except Exception as e:
-            self.logger.error(f"搜索疾病时发生错误: {str(e)}")
+            logger.error(f"搜索疾病时发生错误: {str(e)}")
             raise
