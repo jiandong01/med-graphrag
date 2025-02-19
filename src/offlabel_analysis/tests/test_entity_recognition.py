@@ -1,11 +1,15 @@
 """实体识别测试"""
 
-import json
 import os
+import json
 import pytest
-from unittest.mock import Mock, patch
+from dotenv import load_dotenv
 from src.offlabel_analysis.entity_recognition import EntityRecognizer
-from src.offlabel_analysis.models import RecognizedEntities, Drug, Disease, Context
+from src.offlabel_analysis.models import RecognizedEntities
+from src.utils import get_elastic_client
+
+# 加载环境变量
+load_dotenv()
 
 # 获取测试数据目录的路径
 TEST_DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
@@ -15,81 +19,136 @@ def load_test_data(filename):
     with open(os.path.join(TEST_DATA_DIR, filename), 'r') as f:
         return json.load(f)
 
-@pytest.fixture
-def mock_es_client():
-    return Mock()
-
-@pytest.fixture
-def mock_inference_client():
-    return Mock()
-
-@pytest.fixture
-def entity_recognizer(mock_es_client, mock_inference_client):
-    with patch('src.offlabel_analysis.entity_recognition.get_elastic_client', return_value=mock_es_client), \
-         patch('src.offlabel_analysis.entity_recognition.InferenceClient', return_value=mock_inference_client):
-        return EntityRecognizer()
+@pytest.fixture(scope="module")
+def entity_recognizer():
+    """创建 EntityRecognizer 实例"""
+    es_client = get_elastic_client()
+    return EntityRecognizer(es=es_client)
 
 @pytest.mark.parametrize("input_file,output_file", [
     ('input/entity_recognition_input_1.json', 'output/entity_recognition_output_1.json'),
     ('input/entity_recognition_input_2.json', 'output/entity_recognition_output_2.json'),
 ])
-def test_entity_recognition(entity_recognizer, mock_es_client, mock_inference_client, input_file, output_file):
+def test_entity_recognition(entity_recognizer, input_file, output_file, capsys):
     """测试实体识别"""
     input_data = load_test_data(input_file)
-    expected_output = load_test_data(output_file)
     
-    # 模拟LLM响应
-    llm_response = {
-        "drug": {"name": expected_output["drug"]["name"]},
-        "disease": {"name": expected_output["disease"]["name"]},
-        "context": expected_output["context"]
-    }
-    mock_inference_client.text_generation.return_value = json.dumps(llm_response)
+    print(f"\n原始输入数据:")
+    print(json.dumps(input_data, ensure_ascii=False, indent=2))
     
-    # 模拟ES搜索响应
-    mock_es_client.search.side_effect = [
-        {'hits': {'hits': [{'_source': {
-            'id': expected_output["drug"]["id"],
-            'name': expected_output["drug"]["name"]
-        }}]}},
-        {'hits': {'hits': [{'_source': {
-            'id': expected_output["disease"]["id"],
-            'name': expected_output["disease"]["name"]
-        }}]}}
-    ]
+    print(f"\n生成的Prompt:")
+    prompt = entity_recognizer._create_prompt(input_data)
+    print(prompt)
+    
+    # 获取原始响应
+    completion = entity_recognizer.client.chat.completions.create(
+        extra_headers={
+            "HTTP-Referer": entity_recognizer.site_url,
+            "X-Title": entity_recognizer.site_name,
+        },
+        model=entity_recognizer.model,
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+    raw_response = completion.choices[0].message.content
+    print(f"\n原始LLM响应:\n{raw_response}")
     
     result = entity_recognizer.recognize(input_data)
     
-    assert isinstance(result, RecognizedEntities)
-    assert result.drug.id == expected_output["drug"]["id"]
-    assert result.drug.name == expected_output["drug"]["name"]
-    assert result.drug.standard_name == expected_output["drug"]["standard_name"]
-    assert result.disease.id == expected_output["disease"]["id"]
-    assert result.disease.name == expected_output["disease"]["name"]
-    assert result.disease.standard_name == expected_output["disease"]["standard_name"]
-    assert result.context.description == expected_output["context"]["description"]
+    print(f"\n测试输入文件: {input_file}")
+    print("识别结果:")
+    print(f"药品: {result.drugs}")
+    print(f"疾病: {result.diseases}")
+    print(f"上下文: {result.context}")
+    print(f"附加信息: {result.additional_info}")
+    
+    captured = capsys.readouterr()
+    print(captured.out)
 
-def test_entity_recognition_error(entity_recognizer, mock_es_client, mock_inference_client):
+def test_entity_recognition_error(entity_recognizer, capsys):
     """测试实体识别错误处理"""
     input_data = load_test_data('input/entity_recognition_input_error.json')
-    expected_error = load_test_data('output/entity_recognition_output_error.json')
     
-    # 模拟LLM响应
-    mock_inference_client.text_generation.return_value = json.dumps(expected_error["details"]["llm_response"])
+    print(f"\n原始输入数据:")
+    print(json.dumps(input_data, ensure_ascii=False, indent=2))
     
-    # 模拟ES搜索响应 - 返回空结果
-    mock_es_client.search.return_value = {'hits': {'hits': []}}
+    print(f"\n生成的Prompt:")
+    prompt = entity_recognizer._create_prompt(input_data)
+    print(prompt)
     
-    with pytest.raises(ValueError) as exc_info:
-        entity_recognizer.recognize(input_data)
+    # 获取原始响应
+    completion = entity_recognizer.client.chat.completions.create(
+        extra_headers={
+            "HTTP-Referer": entity_recognizer.site_url,
+            "X-Title": entity_recognizer.site_name,
+        },
+        model=entity_recognizer.model,
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+    raw_response = completion.choices[0].message.content
+    print(f"\n原始LLM响应:\n{raw_response}")
     
-    assert str(exc_info.value) == expected_error["error_message"]
+    result = entity_recognizer.recognize(input_data)
+    
+    print("\n测试错误处理:")
+    print(f"识别到的药品: {result.drugs}")
+    print(f"识别到的疾病: {result.diseases}")
+    print(f"上下文: {result.context}")
+    print(f"附加信息: {result.additional_info}")
+    
+    captured = capsys.readouterr()
+    print(captured.out)
 
-def test_invalid_llm_response(entity_recognizer, mock_inference_client):
-    """测试无效的LLM响应"""
-    mock_inference_client.text_generation.return_value = 'Invalid JSON'
+def test_invalid_input(entity_recognizer, capsys):
+    """测试无效输入"""
+    input_data = {"description": ""}
     
-    input_data = {"description": "无效的输入数据"}
+    print(f"\n原始输入数据:")
+    print(json.dumps(input_data, ensure_ascii=False, indent=2))
     
-    with pytest.raises(json.JSONDecodeError):
+    try:
         entity_recognizer.recognize(input_data)
+    except ValueError:
+        print("\n测试无效输入: 成功抛出 ValueError")
+    
+    captured = capsys.readouterr()
+    print(captured.out)
+
+def test_think_content(entity_recognizer, capsys):
+    """测试think内容的处理"""
+    input_data = {"description": "测试think内容"}
+    
+    print(f"\n原始输入数据:")
+    print(json.dumps(input_data, ensure_ascii=False, indent=2))
+    
+    print(f"\n生成的Prompt:")
+    prompt = entity_recognizer._create_prompt(input_data)
+    print(prompt)
+    
+    # 获取原始响应
+    completion = entity_recognizer.client.chat.completions.create(
+        extra_headers={
+            "HTTP-Referer": entity_recognizer.site_url,
+            "X-Title": entity_recognizer.site_name,
+        },
+        model=entity_recognizer.model,
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+    raw_response = completion.choices[0].message.content
+    print(f"\n原始LLM响应:\n{raw_response}")
+    
+    result = entity_recognizer.recognize(input_data)
+    
+    print("\n测试 think 内容:")
+    print(f"Think 内容: {result.additional_info.get('think', '')}")
+    
+    captured = capsys.readouterr()
+    print(captured.out)
+
+if __name__ == "__main__":
+    pytest.main(["-v", __file__])

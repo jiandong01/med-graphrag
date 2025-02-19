@@ -3,13 +3,14 @@
 import os
 import json
 import logging
+import re
 from datetime import datetime
-from typing import Dict, Any, Optional
-from huggingface_hub import InferenceClient
+from typing import Dict, Any, Optional, List, Tuple
+from openai import OpenAI
 from elasticsearch import Elasticsearch
 
 from src.utils import get_elastic_client, load_env
-from .models import Case, RecognizedEntities, Drug, Disease, Context
+from .models import RecognizedEntities, Drug, Disease, Context, DrugMatch, DiseaseMatch
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,37 +18,82 @@ logger = logging.getLogger(__name__)
 class EntityRecognizer:
     """实体识别器 - 识别输入中的药品和疾病实体并与数据库对齐"""
     
-    def __init__(self, es: Elasticsearch = None, api_key: str = None):
+    def __init__(self, es: Elasticsearch = None):
         """初始化识别器
         
         Args:
             es: Elasticsearch客户端实例
-            api_key: HuggingFace API key
         """
         # Elasticsearch设置
         self.es = es or get_elastic_client()
         self.drugs_index = 'drugs'
         self.diseases_index = 'diseases'
         
-        # HuggingFace设置
+        # OpenAI/OpenRouter设置
         load_env()
-        self.api_key = api_key or os.getenv('HF_API_KEY')
-        if not self.api_key:
-            raise ValueError("HF_API_KEY not found")
-        
-        self.client = InferenceClient(
-            provider="hf-inference",
-            api_key=self.api_key
+        self.client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.getenv("OPENROUTER_API_KEY")
         )
+        self.model = "deepseek/deepseek-r1-distill-qwen-32b"
+        self.site_url = os.getenv("SITE_URL", "http://localhost:3000")
+        self.site_name = os.getenv("SITE_NAME", "Medical GraphRAG")
     
-    def _search_drug(self, name: str) -> Optional[Dict]:
+    def _clean_json_string(self, json_str: str) -> str:
+        """清理JSON字符串，移除无效字符
+        
+        Args:
+            json_str: 原始JSON字符串
+            
+        Returns:
+            str: 清理后的JSON字符串
+        """
+        # 移除控制字符，但保留换行和空格
+        json_str = ''.join(char for char in json_str if char >= ' ' or char in ['\n', '\r', '\t'])
+        
+        # 尝试修复常见的JSON格式问题
+        json_str = json_str.replace('\n', ' ')  # 将换行符替换为空格
+        json_str = json_str.replace('\r', ' ')  # 将回车符替换为空格
+        json_str = re.sub(r'\s+', ' ', json_str)  # 将多个空白字符替换为单个空格
+        
+        return json_str.strip()
+    
+    def _extract_json_from_response(self, response: str) -> Tuple[Optional[str], str]:
+        """从响应中提取JSON内容和think内容
+        
+        Args:
+            response: LLM的原始响应文本
+            
+        Returns:
+            tuple[Optional[str], str]: (think内容, JSON内容)
+        """
+        # 提取think内容
+        think_content = None
+        if "<think>" in response and "</think>" in response:
+            start = response.find("<think>") + len("<think>")
+            end = response.find("</think>")
+            think_content = response[start:end].strip()
+            response = response[end + len("</think>"):].strip()
+        
+        # 提取JSON内容
+        json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            json_str = response.strip()
+        
+        # 清理JSON字符串
+        return think_content, self._clean_json_string(json_str)
+    
+    def _search_drug(self, name: str, unique: bool = False) -> List[Dict]:
         """在ES中搜索药品
         
         Args:
             name: 药品名称
+            unique: 是否只返回唯一结果
             
         Returns:
-            Optional[Dict]: 匹配的药品信息
+            List[Dict]: 匹配的药品信息列表
         """
         try:
             query = {
@@ -58,25 +104,32 @@ class EntityRecognizer:
                             {"match": {"details.content": name}}
                         ]
                     }
-                }
+                },
+                "size": 1 if unique else 5
             }
             result = self.es.search(index=self.drugs_index, body=query)
             hits = result['hits']['hits']
-            if hits:
-                return hits[0]['_source']
-            return None
+            return [
+                {
+                    'id': hit['_source'].get('id', ''),
+                    'name': hit['_source'].get('name', ''),
+                    '_score': hit.get('_score', 0)
+                }
+                for hit in hits
+            ]
         except Exception as e:
             logger.error(f"搜索药品时发生错误: {str(e)}")
             raise
     
-    def _search_disease(self, name: str) -> Optional[Dict]:
+    def _search_disease(self, name: str, unique: bool = False) -> List[Dict]:
         """在ES中搜索疾病
         
         Args:
             name: 疾病名称
+            unique: 是否只返回唯一结果
             
         Returns:
-            Optional[Dict]: 匹配的疾病信息
+            List[Dict]: 匹配的疾病信息列表
         """
         try:
             query = {
@@ -88,110 +141,151 @@ class EntityRecognizer:
                             {"match": {"related_diseases.name": name}}
                         ]
                     }
-                }
+                },
+                "size": 1 if unique else 5
             }
             result = self.es.search(index=self.diseases_index, body=query)
             hits = result['hits']['hits']
-            if hits:
-                return hits[0]['_source']
-            return None
+            return [
+                {
+                    'id': hit['_source'].get('id', ''),
+                    'name': hit['_source'].get('name', ''),
+                    '_score': hit.get('_score', 0)
+                }
+                for hit in hits
+            ]
         except Exception as e:
             logger.error(f"搜索疾病时发生错误: {str(e)}")
             raise
     
-    def recognize(self, input_data: Dict[str, Any]) -> RecognizedEntities:
+    def recognize(self, input_data: Dict[str, Any], unique_results: bool = True) -> RecognizedEntities:
         """识别输入数据中的实体并与数据库对齐
         
         Args:
             input_data: 输入数据，包含病例描述等信息
+            unique_results: 是否只返回唯一的匹配结果
             
         Returns:
             RecognizedEntities: 识别出的实体
         """
         try:
+            # 输入验证
+            if not input_data.get("description"):
+                raise ValueError("输入数据必须包含非空的description字段")
+
             # 1. 使用LLM进行初步实体识别
-            prompt_template = """请从以下医疗记录中识别药品和疾病实体。
-
-医疗记录：
-{{medical_record}}
-
-请以JSON格式返回识别结果，包含以下字段：
-{{
-    "drug": {{
-        "name": "药品名称"
-    }},
-    "disease": {{
-        "name": "疾病名称"
-    }},
-    "context": {{
-        "description": "相关描述",
-        "additional_info": {{}}
-    }}
-}}"""
+            prompt = self._create_prompt(input_data)
             
-            prompt = prompt_template.format(
-                medical_record=json.dumps(input_data, ensure_ascii=False)
+            completion = self.client.chat.completions.create(
+                extra_headers={
+                    "HTTP-Referer": self.site_url,
+                    "X-Title": self.site_name,
+                },
+                model=self.model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
             )
-
-            # 调用模型
-            response = self.client.text_generation(
-                prompt,
-                model="Qwen/Qwen-14B-Chat",
-                max_new_tokens=1000,
-                temperature=0.1,
-                repetition_penalty=1.1
-            )
+            
+            response = completion.choices[0].message.content
             
             # 解析响应
-            initial_entities = json.loads(response)
+            think_content, json_str = self._extract_json_from_response(response)
+            try:
+                initial_entities = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON解析错误: {str(e)}")
+                logger.error(f"JSON字符串: {json_str}")
+                raise
             
             # 2. 在数据库中查找匹配的标准实体
-            # 药品匹配
-            drug_info = self._search_drug(initial_entities['drug']['name'])
-            if not drug_info:
-                raise ValueError(f"未找到匹配的药品: {initial_entities['drug']['name']}")
+            drugs = []
+            for drug_entity in initial_entities.get('drugs', []):
+                drug_matches = self._search_drug(drug_entity['name'], unique_results)
+                if drug_matches:  # 只有在找到匹配时才添加
+                    drug = Drug(
+                        name=drug_entity['name'],
+                        matches=[
+                            DrugMatch(
+                                id=match['id'],
+                                standard_name=match['name'],
+                                score=match['_score']
+                            )
+                            for match in drug_matches
+                        ]
+                    )
+                    drugs.append(drug)
             
-            drug = Drug(
-                id=drug_info['id'],
-                name=drug_info['name'],
-                standard_name=drug_info['name']  # 使用药品名称作为标准名称
-            )
-            
-            # 疾病匹配
-            disease_info = self._search_disease(initial_entities['disease']['name'])
-            if not disease_info:
-                raise ValueError(f"未找到匹配的疾病: {initial_entities['disease']['name']}")
-            
-            # 对于疾病，我们尝试从不同来源获取标准名称
-            standard_name = None
-            if disease_info.get('standard_name'):
-                standard_name = disease_info['standard_name']
-            elif disease_info.get('parent_disease', {}).get('name'):
-                standard_name = disease_info['parent_disease']['name']
-            else:
-                # 如果没有明确的标准名称，使用最基本的疾病名称
-                # 例如："继发性肺动脉高压" -> "肺动脉高压"
-                standard_name = disease_info['name'].replace('继发性', '').replace('原发性', '').strip()
-            
-            disease = Disease(
-                id=disease_info['id'],
-                name=disease_info['name'],
-                standard_name=standard_name
-            )
+            diseases = []
+            for disease_entity in initial_entities.get('diseases', []):
+                disease_matches = self._search_disease(disease_entity['name'], unique_results)
+                if disease_matches:  # 只有在找到匹配时才添加
+                    disease = Disease(
+                        name=disease_entity['name'],
+                        matches=[
+                            DiseaseMatch(
+                                id=match['id'],
+                                standard_name=match['name'],
+                                score=match['_score']
+                            )
+                            for match in disease_matches
+                        ]
+                    )
+                    diseases.append(disease)
             
             # 构建上下文
             context = Context(
                 description=initial_entities['context']['description'],
-                additional_info=initial_entities['context'].get('additional_info', {})
+                raw_data=input_data
             )
             
             # 3. 返回标准化的实体
             return RecognizedEntities(
-                drug=drug,
-                disease=disease,
-                context=context
+                drugs=drugs,
+                diseases=diseases,
+                context=context,
+                additional_info={"think": think_content or ""}  # 确保think内容始终是字符串
             )
                 
         except Exception as e:
             logger.error(f"识别实体时发生错误: {str(e)}")
             raise
+    
+    def _create_prompt(self, input_data: Dict[str, Any]) -> str:
+        """创建用于实体识别的prompt
+        
+        Args:
+            input_data: 输入数据
+            
+        Returns:
+            str: 格式化的prompt
+        """
+        return f"""请从以下医疗记录中识别所有的药品和疾病实体。
+
+医疗记录：
+{json.dumps(input_data, ensure_ascii=False)}
+
+请以JSON格式返回识别结果，包含以下字段：
+{{
+    "drugs": [
+        {{
+            "name": "药品名称1"
+        }},
+        {{
+            "name": "药品名称2"
+        }}
+    ],
+    "diseases": [
+        {{
+            "name": "疾病名称1"
+        }},
+        {{
+            "name": "疾病名称2"
+        }}
+    ],
+    "context": {{
+        "description": "相关描述"
+    }}
+}}
+
+在返回结果之前，请先用<think>标签记录你的思考过程。"""

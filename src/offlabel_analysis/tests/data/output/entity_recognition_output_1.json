@@ -1,21 +1,47 @@
 {
-    "drug": {
-        "id": "drug_001",
-        "name": "阿莫西林",
-        "standard_name": "阿莫西林"
-    },
-    "disease": {
-        "id": "disease_001",
-        "name": "急性链球菌性咽炎",
-        "standard_name": "急性链球菌性咽炎"
-    },
+    "drugs": [
+        {
+            "name": "阿莫西林",
+            "matches": [
+                {
+                    "id": "drug_001",
+                    "standard_name": "阿莫西林",
+                    "score": 0.9
+                }
+            ]
+        }
+    ],
+    "diseases": [
+        {
+            "name": "急性链球菌性咽炎",
+            "matches": [
+                {
+                    "id": "disease_001",
+                    "standard_name": "急性链球菌性咽炎",
+                    "score": 0.9
+                }
+            ]
+        }
+    ],
     "context": {
         "description": "患者因发热、咽痛就诊",
-        "additional_info": {
-            "age": 35,
-            "gender": "男",
-            "symptoms": ["发热", "咽痛"],
-            "duration": "3天"
+        "raw_data": {
+            "description": "患者因发热、咽痛就诊，考虑急性链球菌性咽炎，拟使用阿莫西林治疗。",
+            "patient_info": {
+                "age": 35,
+                "gender": "男",
+                "symptoms": ["发热", "咽痛"],
+                "duration": "3天"
+            },
+            "prescription": {
+                "drug": "阿莫西林",
+                "dosage": "0.5g",
+                "frequency": "每日三次",
+                "duration": "3天"
+            }
         }
+    },
+    "additional_info": {
+        "think": null
     }
 }

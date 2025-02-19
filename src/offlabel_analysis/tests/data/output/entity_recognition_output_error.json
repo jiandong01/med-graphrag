@@ -1,28 +1,55 @@
 {
-    "error_type": "EntityNotFoundError",
-    "error_message": "未找到匹配的药品: 未知药物X",
-    "details": {
-        "llm_response": {
-            "drug": {
-                "name": "未知药物X"
+    "drugs": [],
+    "diseases": [],
+    "context": {
+        "description": "患者出现不明原因的症状",
+        "raw_data": {
+            "description": "患者出现不明原因的症状，考虑使用新型药物治疗。",
+            "patient_info": {
+                "age": 50,
+                "gender": "男",
+                "symptoms": ["未知症状"],
+                "duration": "1周"
             },
-            "disease": {
-                "name": "未知症状"
-            },
-            "context": {
-                "description": "患者出现不明原因的症状",
-                "additional_info": {
-                    "age": 50,
-                    "gender": "男",
-                    "symptoms": ["未知症状"],
-                    "duration": "1周"
-                }
+            "prescription": {
+                "drug": "未知药物X",
+                "dosage": "10mg",
+                "frequency": "每日一次",
+                "duration": "1周"
             }
-        },
-        "es_search_results": {
-            "drug_search": {
-                "total_hits": 0,
-                "matches": []
+        }
+    },
+    "additional_info": {
+        "think": null,
+        "error": {
+            "type": "EntityNotFoundError",
+            "message": "未找到匹配的药品: 未知药物X",
+            "details": {
+                "llm_response": {
+                    "drugs": [
+                        {
+                            "name": "未知药物X"
+                        }
+                    ],
+                    "diseases": [
+                        {
+                            "name": "未知症状"
+                        }
+                    ],
+                    "context": {
+                        "description": "患者出现不明原因的症状"
+                    }
+                },
+                "es_search_results": {
+                    "drug_search": {
+                        "total_hits": 0,
+                        "matches": []
+                    },
+                    "disease_search": {
+                        "total_hits": 0,
+                        "matches": []
+                    }
+                }
             }
         }
     }

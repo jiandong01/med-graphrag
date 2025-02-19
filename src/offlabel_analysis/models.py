@@ -1,31 +1,44 @@
 """数据模型定义"""
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
+class DrugMatch(BaseModel):
+    """ES 匹配的药品信息"""
+    id: str
+    standard_name: str
+    score: Optional[float] = None  # ES 匹配分数
+
+class DiseaseMatch(BaseModel):
+    """ES 匹配的疾病信息"""
+    id: str
+    standard_name: str
+    score: Optional[float] = None  # ES 匹配分数
+
 class Drug(BaseModel):
     """药品实体"""
-    id: str
-    name: str
-    standard_name: Optional[str] = None
-    
+    name: str  # LLM 识别的原始名称
+    matches: List[DrugMatch] = []  # ES 匹配的结果列表
+
 class Disease(BaseModel):
     """疾病实体"""
-    id: str
-    name: str
-    standard_name: Optional[str] = None
+    name: str  # LLM 识别的原始名称
+    matches: List[DiseaseMatch] = []  # ES 匹配的结果列表
 
 class Context(BaseModel):
     """病例上下文"""
     description: str
-    additional_info: Optional[Dict] = None
+    raw_data: Optional[Dict] = None
 
 class RecognizedEntities(BaseModel):
     """识别出的实体"""
-    drug: Drug
-    disease: Disease
-    context: Optional[Context] = None
+    drugs: List[Drug] = []  # 支持多个药品
+    diseases: List[Disease] = []  # 支持多个疾病
+    context: Context
+    additional_info: Dict[str, Any] = {
+        "think": None
+    }
 
 class IndicationMatch(BaseModel):
     """适应症匹配结果"""
@@ -62,7 +75,7 @@ class AnalysisResult(BaseModel):
     is_offlabel: bool
     analysis: Analysis
     recommendation: Recommendation
-    metadata: Dict[str, any]
+    metadata: Dict[str, Any]
 
 class Case(BaseModel):
     """病例数据"""
