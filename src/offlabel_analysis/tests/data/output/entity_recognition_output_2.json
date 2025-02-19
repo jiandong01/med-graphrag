@@ -1,0 +1,22 @@
+{
+    "drug": {
+        "id": "drug_002",
+        "name": "西地那非",
+        "standard_name": "西地那非"
+    },
+    "disease": {
+        "id": "disease_002",
+        "name": "继发性肺动脉高压",
+        "standard_name": "肺动脉高压"
+    },
+    "context": {
+        "description": "患者有明显的呼吸困难和活动耐量下降症状",
+        "additional_info": {
+            "age": 45,
+            "gender": "女",
+            "symptoms": ["呼吸困难", "活动耐量下降", "心悸"],
+            "duration": "2个月",
+            "comorbidities": ["系统性硬化症"]
+        }
+    }
+}

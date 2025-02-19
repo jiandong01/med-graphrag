@@ -1,0 +1,15 @@
+{
+    "description": "患者出现不明原因的症状，考虑使用新型药物治疗。",
+    "patient_info": {
+        "age": 50,
+        "gender": "男",
+        "symptoms": ["未知症状"],
+        "duration": "1周"
+    },
+    "prescription": {
+        "drug": "未知药物X",
+        "dosage": "10mg",
+        "frequency": "每日一次",
+        "duration": "1周"
+    }
+}

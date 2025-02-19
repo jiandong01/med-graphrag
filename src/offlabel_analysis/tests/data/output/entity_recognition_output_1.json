@@ -1,0 +1,21 @@
+{
+    "drug": {
+        "id": "drug_001",
+        "name": "阿莫西林",
+        "standard_name": "阿莫西林"
+    },
+    "disease": {
+        "id": "disease_001",
+        "name": "急性链球菌性咽炎",
+        "standard_name": "急性链球菌性咽炎"
+    },
+    "context": {
+        "description": "患者因发热、咽痛就诊",
+        "additional_info": {
+            "age": 35,
+            "gender": "男",
+            "symptoms": ["发热", "咽痛"],
+            "duration": "3天"
+        }
+    }
+}

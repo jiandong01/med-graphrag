@@ -1,0 +1,29 @@
+{
+    "error_type": "EntityNotFoundError",
+    "error_message": "未找到匹配的药品: 未知药物X",
+    "details": {
+        "llm_response": {
+            "drug": {
+                "name": "未知药物X"
+            },
+            "disease": {
+                "name": "未知症状"
+            },
+            "context": {
+                "description": "患者出现不明原因的症状",
+                "additional_info": {
+                    "age": 50,
+                    "gender": "男",
+                    "symptoms": ["未知症状"],
+                    "duration": "1周"
+                }
+            }
+        },
+        "es_search_results": {
+            "drug_search": {
+                "total_hits": 0,
+                "matches": []
+            }
+        }
+    }
+}

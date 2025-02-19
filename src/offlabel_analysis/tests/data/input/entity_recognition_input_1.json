@@ -1,0 +1,15 @@
+{
+    "description": "患者因发热、咽痛就诊，考虑急性链球菌性咽炎，拟使用阿莫西林治疗。",
+    "patient_info": {
+        "age": 35,
+        "gender": "男",
+        "symptoms": ["发热", "咽痛"],
+        "duration": "3天"
+    },
+    "prescription": {
+        "drug": "阿莫西林",
+        "dosage": "0.5g",
+        "frequency": "每日三次",
+        "duration": "3天"
+    }
+}
