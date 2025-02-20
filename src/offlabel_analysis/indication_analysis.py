@@ -2,7 +2,6 @@
 
 import os
 import json
-import logging
 from datetime import datetime
 from typing import Dict, List, Any
 from huggingface_hub import InferenceClient
@@ -11,8 +10,49 @@ from elasticsearch import Elasticsearch
 from src.utils import get_elastic_client, load_env
 from .models import Case, AnalysisResult
 
+import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# 提示模板
+ANALYSIS_PROMPT_TEMPLATE = """请分析以下用药情况是否属于超适应症用药。
+
+输入信息：
+1. 药品信息：
+   - 名称：{drug_name}
+   - 标准适应症：{indications}
+   - 药理毒理：{pharmacology}
+   - 禁忌：{contraindications}
+   - 注意事项：{precautions}
+
+2. 患者情况：
+   - 诊断：{diagnosis}
+   - 详细描述：{description}
+
+请进行分析并以JSON格式返回结果，包含以下字段：
+{{
+    "is_offlabel": true/false,  # 是否为超适应症用药
+    "analysis": {{
+        "indication_match": {{
+            "score": float,  # 与标准适应症的匹配度(0-1)
+            "matching_indication": str,  # 最匹配的标准适应症
+            "reasoning": str  # 匹配度分析原因
+        }},
+        "mechanism_similarity": {{
+            "score": float,  # 机制相似度(0-1)
+            "reasoning": str  # 机制相似性分析
+        }},
+        "evidence_support": {{
+            "level": str,  # 证据等级：A/B/C/D
+            "description": str  # 支持证据说明
+        }}
+    }},
+    "recommendation": {{
+        "decision": str,  # "建议使用"/"谨慎使用"/"不建议使用"
+        "explanation": str,  # 建议说明
+        "risk_assessment": str  # 风险评估
+    }}
+}}"""
 
 class IndicationAnalyzer:
     """适应症分析器 - 分析用药是否属于超适应症"""
@@ -64,48 +104,29 @@ class IndicationAnalyzer:
             AnalysisResult: 分析结果
         """
         try:
+            if not case.recognized_entities.drugs:
+                raise ValueError("未识别到药品信息")
+            
+            drug = case.recognized_entities.drugs[0]
+            if not drug.matches:
+                raise ValueError("未找到匹配的标准药品")
+            
             # 获取药品详细信息
-            drug_info = self.get_drug_info(case.recognized_entities.drug.id)
+            drug_info = self.get_drug_info(drug.matches[0].id)
+            
+            if not case.recognized_entities.diseases:
+                raise ValueError("未识别到疾病信息")
             
             # 构建分析提示
-            prompt = f"""请分析以下用药情况是否属于超适应症用药。
-
-输入信息：
-1. 药品信息：
-   - 名称：{drug_info['name']}
-   - 标准适应症：{json.dumps(drug_info.get('indications', []), ensure_ascii=False)}
-   - 药理毒理：{drug_info.get('details', {}).get('药理毒理', '无相关信息')}
-   - 禁忌：{json.dumps(drug_info.get('contraindications', []), ensure_ascii=False)}
-   - 注意事项：{json.dumps(drug_info.get('precautions', []), ensure_ascii=False)}
-
-2. 患者情况：
-   - 诊断：{case.recognized_entities.disease.name}
-   - 详细描述：{case.recognized_entities.context.description if case.recognized_entities.context else ""}
-
-请进行分析并以JSON格式返回结果，包含以下字段：
-{
-    "is_offlabel": true/false,  # 是否为超适应症用药
-    "analysis": {
-        "indication_match": {
-            "score": float,  # 与标准适应症的匹配度(0-1)
-            "matching_indication": str,  # 最匹配的标准适应症
-            "reasoning": str  # 匹配度分析原因
-        },
-        "mechanism_similarity": {
-            "score": float,  # 机制相似度(0-1)
-            "reasoning": str  # 机制相似性分析
-        },
-        "evidence_support": {
-            "level": str,  # 证据等级：A/B/C/D
-            "description": str  # 支持证据说明
-        }
-    },
-    "recommendation": {
-        "decision": str,  # "建议使用"/"谨慎使用"/"不建议使用"
-        "explanation": str,  # 建议说明
-        "risk_assessment": str  # 风险评估
-    }
-}"""
+            prompt = ANALYSIS_PROMPT_TEMPLATE.format(
+                drug_name=drug_info['name'],
+                indications=json.dumps(drug_info.get('indications', []), ensure_ascii=False),
+                pharmacology=drug_info.get('details', {}).get('药理毒理', '无相关信息'),
+                contraindications=json.dumps(drug_info.get('contraindications', []), ensure_ascii=False),
+                precautions=json.dumps(drug_info.get('precautions', []), ensure_ascii=False),
+                diagnosis=case.recognized_entities.diseases[0].name,
+                description=case.recognized_entities.context.description if case.recognized_entities.context else ""
+            )
 
             # 调用模型
             response = self.client.text_generation(
@@ -124,8 +145,8 @@ class IndicationAnalyzer:
                     'metadata': {
                         'analysis_time': datetime.now().isoformat(),
                         'model_used': "Qwen-14B-Chat",
-                        'drug_id': drug_info['id'],
-                        'disease_id': case.recognized_entities.disease.id
+                        'drug_id': drug.matches[0].id,
+                        'disease_id': case.recognized_entities.diseases[0].matches[0].id if case.recognized_entities.diseases[0].matches else None
                     }
                 })
                 return AnalysisResult(**result)

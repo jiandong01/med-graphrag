@@ -1,0 +1,40 @@
+{
+  "id": "case_error",
+  "recognized_entities": {
+    "drugs": [
+      {
+        "name": "未知药物X",
+        "matches": []
+      }
+    ],
+    "diseases": [
+      {
+        "name": "未知疾病Y",
+        "matches": []
+      }
+    ],
+    "context": {
+      "description": "患者使用未知药物X治疗未知疾病Y。",
+      "raw_data": {
+        "description": "患者使用未知药物X治疗未知疾病Y。",
+        "patient_info": {
+          "age": 50,
+          "gender": "男",
+          "symptoms": ["未知症状"],
+          "duration": "不详"
+        },
+        "prescription": {
+          "drug": "未知药物X",
+          "dosage": "未知",
+          "frequency": "未知",
+          "duration": "未知"
+        }
+      }
+    },
+    "additional_info": {
+      "think": null
+    }
+  },
+  "created_at": "2025-02-19T21:47:00Z",
+  "updated_at": "2025-02-19T21:47:00Z"
+}

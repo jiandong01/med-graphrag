@@ -1,0 +1,29 @@
+{
+  "is_offlabel": false,
+  "analysis": {
+    "indication_match": {
+      "score": 0.95,
+      "matching_indication": "急性链球菌性咽炎",
+      "reasoning": "阿莫西林是治疗急性链球菌性咽炎的标准用药之一，适应症完全匹配。"
+    },
+    "mechanism_similarity": {
+      "score": 1.0,
+      "reasoning": "阿莫西林作为β-内酰胺类抗生素，其作用机制与治疗链球菌性咽炎的需求完全吻合。"
+    },
+    "evidence_support": {
+      "level": "A",
+      "description": "多项随机对照试验和临床指南均支持使用阿莫西林治疗急性链球菌性咽炎。"
+    }
+  },
+  "recommendation": {
+    "decision": "建议使用",
+    "explanation": "阿莫西林是治疗急性链球菌性咽炎的一线用药，适应症完全匹配，有充分的循证医学证据支持。",
+    "risk_assessment": "常见不良反应包括胃肠道反应和皮疹，但总体风险较低。应注意是否有青霉素过敏史。"
+  },
+  "metadata": {
+    "analysis_time": "2025-02-19T21:45:00Z",
+    "model_used": "Qwen-14B-Chat",
+    "drug_id": "drug_001",
+    "disease_id": "disease_001"
+  }
+}
