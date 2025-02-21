@@ -8,7 +8,6 @@ from .models import Case
 from .entity_recognition import EntityRecognizer
 from .indication_analysis import IndicationAnalyzer
 from .analysis import OfflabelAnalyzer
-from .result_generator import ResultGenerator
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

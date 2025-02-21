@@ -4,17 +4,16 @@ import os
 import json
 import pytest
 import logging
-from dotenv import load_dotenv
 from src.offlabel_analysis.indication_analysis import IndicationAnalyzer
 from src.offlabel_analysis.models import (
     Case, AnalysisResult, RecognizedEntities, Context,
     RecognizedDrug, RecognizedDisease, DrugMatch, DiseaseMatch
 )
-from src.utils import get_elastic_client
+from src.utils import get_elastic_client, load_env
 from src.offlabel_analysis.utils import create_case_from_entity_recognition
 
 # 加载环境变量
-load_dotenv()
+load_env()
 
 # 获取测试数据目录的路径
 TEST_DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')

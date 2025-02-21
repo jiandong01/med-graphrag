@@ -3,13 +3,13 @@
 import os
 import json
 import pytest
-from dotenv import load_dotenv
 from src.offlabel_analysis.entity_recognition import EntityRecognizer
 from src.offlabel_analysis.models import RecognizedEntities
-from src.utils import get_elastic_client
+from src.offlabel_analysis.prompt import create_entity_recognition_prompt
+from src.utils import get_elastic_client, load_env
 
 # 加载环境变量
-load_dotenv()
+load_env()
 
 # 获取测试数据目录的路径
 TEST_DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
@@ -37,7 +37,7 @@ def test_entity_recognition(entity_recognizer, input_file, output_file, capsys):
     print(json.dumps(input_data, ensure_ascii=False, indent=2))
     
     print(f"\n生成的Prompt:")
-    prompt = entity_recognizer._create_prompt(input_data)
+    prompt = create_entity_recognition_prompt(input_data)
     print(prompt)
     
     # 获取原始响应
@@ -74,7 +74,7 @@ def test_entity_recognition_error(entity_recognizer, capsys):
     print(json.dumps(input_data, ensure_ascii=False, indent=2))
     
     print(f"\n生成的Prompt:")
-    prompt = entity_recognizer._create_prompt(input_data)
+    prompt = create_entity_recognition_prompt(input_data)
     print(prompt)
     
     # 获取原始响应
@@ -125,7 +125,7 @@ def test_think_content(entity_recognizer, capsys):
     print(json.dumps(input_data, ensure_ascii=False, indent=2))
     
     print(f"\n生成的Prompt:")
-    prompt = entity_recognizer._create_prompt(input_data)
+    prompt = create_entity_recognition_prompt(input_data)
     print(prompt)
     
     # 获取原始响应

@@ -1,20 +1,20 @@
 """疾病索引管理"""
 
 import json
-import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
 from tqdm import tqdm
 
-from src.utils import get_elastic_client
+from src.utils import get_elastic_client, setup_logging, load_env
 from src.indication.es_mappings import DISEASE_MAPPING
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = setup_logging(__name__)
+
+# Load environment variables
+load_env()
 
 class DiseaseManager:
     """疾病管理器 - 处理疾病数据的索引和查询"""

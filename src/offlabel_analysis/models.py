@@ -36,6 +36,7 @@ class RecognizedEntities:
     drugs: List[RecognizedDrug]
     diseases: List[RecognizedDisease]
     context: Optional[Context] = None
+    additional_info: Optional[Dict[str, Any]] = None
 
 @dataclass
 class Case:

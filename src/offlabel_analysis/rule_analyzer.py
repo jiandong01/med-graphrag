@@ -5,8 +5,8 @@ from typing import Dict, List
 class RuleAnalyzer:
     def __init__(self):
         # 初始化同义词库、上下位概念库等
-        self.synonym_db = {}  # 这里应该连接到实际的同义词数据库
-        self.hierarchy_db = {}  # 这里应该连接到实际的疾病层级数据库
+        self.synonym_db = {}  # TODO: 这里应该连接到实际的同义词数据库
+        self.hierarchy_db = {}  # TODO: 这里应该连接到实际的疾病层级数据库
 
     def analyze(self, drug_info: Dict, disease_info: Dict) -> Dict:
         """

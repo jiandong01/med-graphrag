@@ -1,5 +1,4 @@
 import os
-import logging
 import argparse
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -8,35 +7,21 @@ from datetime import datetime
 import pandas as pd
 from sqlalchemy import create_engine, text
 from tqdm import tqdm
-from dotenv import load_dotenv
 import sys
 import time
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-import logging
-from typing import Dict, List, Any
-
 from src.drug.drug_indexer import DrugIndexer
 from src.drug.drug_normalizer import DrugNormalizer
 from src.drug.tag_preprocessor import TagPreprocessor
-from src.utils import get_elastic_client
+from src.utils import get_elastic_client, setup_logging, load_env, load_config, ensure_directories
 
-logger = logging.getLogger(__name__)
+logger = setup_logging(__name__)
 
 # Load environment variables
-load_dotenv()
-
-def setup_logging():
-    """设置日志配置"""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    # 设置ES传输日志级别为WARNING，减少输出
-    logging.getLogger('elastic_transport.transport').setLevel(logging.WARNING)
+load_env()
 
 class DrugPipeline:
     """药品数据处理管道"""
@@ -361,11 +346,18 @@ def main():
     parser = argparse.ArgumentParser(description='处理药品数据并建立ES索引')
     parser.add_argument('--output-dir', type=str, help='输出目录路径，用于保存中间结果')
     parser.add_argument('--clear', action='store_true', help='是否清空现有索引')
+    parser.add_argument('--config', type=str, default='config.yaml', help='配置文件路径')
     args = parser.parse_args()
     
     try:
-        # 设置日志格式
-        setup_logging()
+        # 设置日志
+        logger = setup_logging(__name__, log_dir='logs')
+        
+        # 加载配置
+        config = load_config(args.config)
+        
+        # 确保所需目录存在
+        ensure_directories(config)
         
         # 从环境变量读取配置
         mysql_url = (
@@ -387,12 +379,12 @@ def main():
         
         # 运行管道
         pipeline.run(
-            output_dir=args.output_dir,
+            output_dir=args.output_dir or config['paths'].get('output_dir'),
             clear_indices=args.clear
         )
         
     except Exception as e:
-        logging.error(f"Pipeline execution failed: {str(e)}")
+        logger.error(f"Pipeline execution failed: {str(e)}")
         raise
 
 if __name__ == "__main__":

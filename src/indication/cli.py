@@ -1,14 +1,16 @@
 """命令行工具"""
 
 import argparse
-import logging
 from pathlib import Path
 
 from src.indication.indications import IndicationProcessor
 from src.indication.diseases import DiseaseManager
+from src.utils import setup_logging, load_env, load_config, ensure_directories
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = setup_logging(__name__)
+
+# Load environment variables
+load_env()
 
 def process_indications(args):
     """处理适应症命令"""

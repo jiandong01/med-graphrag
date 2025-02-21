@@ -3,43 +3,43 @@
 import os
 import json
 import uuid
-import logging
 import hashlib
+import re
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from tqdm import tqdm
-from huggingface_hub import InferenceClient
+from openai import OpenAI
 from elasticsearch import Elasticsearch
 
-from src.utils import get_elastic_client, load_env
+from src.utils import get_elastic_client, setup_logging, load_env, load_config, ensure_directories
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = setup_logging(__name__)
+
+# Load environment variables
+load_env()
 
 class IndicationProcessor:
     """适应症处理器 - 包含导出和提取功能"""
     
-    def __init__(self, es: Elasticsearch = None, api_key: str = None):
+    def __init__(self, es: Elasticsearch = None):
         """初始化处理器
         
         Args:
             es: Elasticsearch客户端实例
-            api_key: HuggingFace API key
         """
         self.es = es or get_elastic_client()
         self.drugs_index = 'drugs'
         
-        # HuggingFace设置
+        # OpenAI/OpenRouter设置
         load_env()
-        self.api_key = api_key or os.getenv('HF_API_KEY')
-        if not self.api_key:
-            raise ValueError("HF_API_KEY not found")
-        
-        self.client = InferenceClient(
-            provider="hf-inference",
-            api_key=self.api_key
+        self.client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.getenv("OPENROUTER_API_KEY")
         )
+        self.model = "deepseek/deepseek-r1-distill-qwen-32b"
+        self.site_url = os.getenv("SITE_URL", "http://localhost:3000")
+        self.site_name = os.getenv("SITE_NAME", "Medical GraphRAG")
         
         # 处理状态
         self.processed_count = 0
@@ -115,6 +115,52 @@ class IndicationProcessor:
             logger.error(f"导出适应症时发生错误: {str(e)}")
             raise
             
+    def _clean_json_string(self, json_str: str) -> str:
+        """清理JSON字符串，移除无效字符
+        
+        Args:
+            json_str: 原始JSON字符串
+            
+        Returns:
+            str: 清理后的JSON字符串
+        """
+        # 移除控制字符，但保留换行和空格
+        json_str = ''.join(char for char in json_str if char >= ' ' or char in ['\n', '\r', '\t'])
+        
+        # 尝试修复常见的JSON格式问题
+        json_str = json_str.replace('\n', ' ')  # 将换行符替换为空格
+        json_str = json_str.replace('\r', ' ')  # 将回车符替换为空格
+        json_str = re.sub(r'\s+', ' ', json_str)  # 将多个空白字符替换为单个空格
+        
+        return json_str.strip()
+    
+    def _extract_json_from_response(self, response: str) -> Tuple[Optional[str], str]:
+        """从响应中提取JSON内容和think内容
+        
+        Args:
+            response: LLM的原始响应文本
+            
+        Returns:
+            tuple[Optional[str], str]: (think内容, JSON内容)
+        """
+        # 提取think内容
+        think_content = None
+        if "<think>" in response and "</think>" in response:
+            start = response.find("<think>") + len("<think>")
+            end = response.find("</think>")
+            think_content = response[start:end].strip()
+            response = response[end + len("</think>"):].strip()
+        
+        # 提取JSON内容
+        json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            json_str = response.strip()
+        
+        # 清理JSON字符串
+        return think_content, self._clean_json_string(json_str)
+
     def extract_diseases(self, indications_data: List[Dict], output_dir: str) -> List[Dict]:
         """从适应症文本中提取疾病信息
         
@@ -135,8 +181,8 @@ class IndicationProcessor:
         for item in tqdm(indications_data, desc="提取疾病信息"):
             try:
                 # 构建提示
-                prompt = """请从以下适应症文本中提取疾病信息，包括主要疾病、子疾病和相关疾病。
-                适应症文本: """ + item['indication_text'] + """
+                prompt = f"""请从以下适应症文本中提取疾病信息，包括主要疾病、子疾病和相关疾病。
+                适应症文本: {item['indication_text']}
                 
                 请用JSON格式返回，包含以下字段:
                 - diseases: 疾病列表，每个疾病包含:
@@ -147,40 +193,48 @@ class IndicationProcessor:
                   - confidence_score: 置信度分数
                 
                 示例:
-                {
+                {{
                   "diseases": [
-                    {
+                    {{
                       "name": "高血压",
                       "type": "disease",
                       "sub_diseases": [
-                        {"name": "原发性高血压", "type": "disease"}
+                        {{"name": "原发性高血压", "type": "disease"}}
                       ],
                       "related_diseases": [
-                        {"name": "心力衰竭", "type": "disease", "relationship": "complication"}
+                        {{"name": "心力衰竭", "type": "disease", "relationship": "complication"}}
                       ],
                       "confidence_score": 0.95
-                    }
+                    }}
                   ]
-                }"""
+                }}"""
                 
                 # 调用模型
-                response = self.client.text_generation(
-                    prompt,
-                    model="Qwen/Qwen-14B-Chat",  # 或其他合适的模型
-                    max_new_tokens=1000,
-                    temperature=0.1,
-                    repetition_penalty=1.1
+                completion = self.client.chat.completions.create(
+                    extra_headers={
+                        "HTTP-Referer": self.site_url,
+                        "X-Title": self.site_name,
+                    },
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant that extracts disease information from medical indications."},
+                        {"role": "user", "content": prompt}
+                    ]
                 )
                 
+                response = completion.choices[0].message.content
+                
                 # 解析响应
+                think_content, json_str = self._extract_json_from_response(response)
                 try:
-                    result = json.loads(response)
+                    result = json.loads(json_str)
                     # 添加元数据
                     result.update({
                         'id': item['id'],
                         'metadata': {
                             'extraction_time': datetime.now().isoformat(),
-                            'confidence': 0.95
+                            'confidence': 0.95,
+                            'think': think_content or ""  # 确保think内容始终是字符串
                         }
                     })
                     extracted_data.append(result)
@@ -190,11 +244,11 @@ class IndicationProcessor:
                         'time': datetime.now().isoformat()
                     })
                     
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
                     failure_log.append({
                         'id': item['id'],
                         'text': item['indication_text'],
-                        'error': 'Invalid JSON response',
+                        'error': f'Invalid JSON response: {str(e)}',
                         'time': datetime.now().isoformat()
                     })
                     continue

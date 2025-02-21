@@ -14,9 +14,9 @@ class KnowledgeEnhancer:
         self.es = es or get_elastic_client()
         self.drugs_index = 'drugs'
         self.diseases_index = 'diseases'
-        self.clinical_guidelines_index = 'clinical_guidelines'
-        self.expert_consensus_index = 'expert_consensus'
-        self.research_papers_index = 'research_papers'
+        self.clinical_guidelines_index = 'clinical_guidelines' # TODO
+        self.expert_consensus_index = 'expert_consensus' # TODO
+        self.research_papers_index = 'research_papers' # TODO
 
     def enhance_case(self, case: Case) -> EnhancedCase:
         """增强病例信息"""
