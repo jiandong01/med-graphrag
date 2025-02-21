@@ -1,86 +1,120 @@
 """数据模型定义"""
 
-from typing import List, Dict, Optional, Any
-from pydantic import BaseModel, ConfigDict
+from typing import Dict, List, Any, Optional
+from dataclasses import dataclass
 from datetime import datetime
 
-class DrugMatch(BaseModel):
-    """ES 匹配的药品信息"""
+@dataclass
+class DrugMatch:
     id: str
     standard_name: str
-    score: Optional[float] = None  # ES 匹配分数
+    score: float
 
-class DiseaseMatch(BaseModel):
-    """ES 匹配的疾病信息"""
+@dataclass
+class DiseaseMatch:
     id: str
     standard_name: str
-    score: Optional[float] = None  # ES 匹配分数
+    score: float
 
-class Drug(BaseModel):
-    """药品实体"""
-    name: str  # LLM 识别的原始名称
-    matches: List[DrugMatch] = []  # ES 匹配的结果列表
+@dataclass
+class RecognizedDrug:
+    name: str
+    matches: List[DrugMatch]
 
-class Disease(BaseModel):
-    """疾病实体"""
-    name: str  # LLM 识别的原始名称
-    matches: List[DiseaseMatch] = []  # ES 匹配的结果列表
+@dataclass
+class RecognizedDisease:
+    name: str
+    matches: List[DiseaseMatch]
 
-class Context(BaseModel):
-    """病例上下文"""
+@dataclass
+class Context:
     description: str
-    raw_data: Optional[Dict] = None
+    raw_data: Dict[str, Any]
 
-class RecognizedEntities(BaseModel):
-    """识别出的实体"""
-    drugs: List[Drug] = []  # 支持多个药品
-    diseases: List[Disease] = []  # 支持多个疾病
-    context: Context
-    additional_info: Dict[str, Any] = {
-        "think": None
-    }
+@dataclass
+class RecognizedEntities:
+    drugs: List[RecognizedDrug]
+    diseases: List[RecognizedDisease]
+    context: Optional[Context] = None
 
-class IndicationMatch(BaseModel):
-    """适应症匹配结果"""
+@dataclass
+class Case:
+    """原始病例数据"""
+    id: str
+    recognized_entities: RecognizedEntities
+    analysis_result: Optional[Any] = None
+    created_at: datetime = datetime.now()
+    updated_at: datetime = datetime.now()
+
+class EnhancedCase:
+    """增强的病例实例，包含所有分析所需信息"""
+    
+    class DrugInfo:
+        def __init__(self):
+            self.id: str = None
+            self.name: str = None
+            self.standard_name: str = None
+            self.indications: List[str] = []
+            self.contraindications: List[str] = []
+            self.precautions: List[str] = []
+            self.pharmacology: str = None
+            self.details: Dict[str, Any] = {}
+    
+    class DiseaseInfo:
+        def __init__(self):
+            self.id: str = None
+            self.name: str = None
+            self.standard_name: str = None
+            self.description: str = None
+            self.icd_code: str = None
+    
+    class Evidence:
+        def __init__(self):
+            self.clinical_guidelines: List[Dict] = []
+            self.expert_consensus: List[Dict] = []
+            self.research_papers: List[Dict] = []
+            
+    def __init__(self, case: Case):
+        self.original_case = case
+        self.drug = self.DrugInfo()
+        self.disease = self.DiseaseInfo()
+        self.evidence = self.Evidence()
+        self.context = case.recognized_entities.context
+
+@dataclass
+class IndicationMatch:
     score: float
     matching_indication: str
     reasoning: str
 
-class MechanismSimilarity(BaseModel):
-    """机制相似性分析"""
+@dataclass
+class MechanismSimilarity:
     score: float
     reasoning: str
 
-class EvidenceSupport(BaseModel):
-    """证据支持"""
-    level: str  # A/B/C/D
+@dataclass
+class EvidenceSupport:
+    level: str
     description: str
 
-class Recommendation(BaseModel):
-    """用药建议"""
-    decision: str  # "建议使用"/"谨慎使用"/"不建议使用"
-    explanation: str
-    risk_assessment: str
-
-class Analysis(BaseModel):
-    """分析结果"""
+@dataclass
+class Analysis:
     indication_match: IndicationMatch
     mechanism_similarity: MechanismSimilarity
     evidence_support: EvidenceSupport
 
-class AnalysisResult(BaseModel):
-    """完整分析结果"""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    
+@dataclass
+class Recommendation:
+    decision: str
+    explanation: str
+    risk_assessment: str
+
+@dataclass
+class AnalysisResult:
+    """分析结果"""
     is_offlabel: bool
+    confidence: float
     analysis: Analysis
     recommendation: Recommendation
+    evidence_synthesis: Dict[str, Any]
     metadata: Dict[str, Any]
-
-class Case(BaseModel):
-    """病例数据"""
-    id: str
-    recognized_entities: RecognizedEntities
-    analysis_result: Optional[AnalysisResult] = None
-    created_at: datetime = datetime.now()
-    updated_at: datetime = datetime.now()

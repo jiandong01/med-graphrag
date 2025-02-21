@@ -1,5 +1,6 @@
 {
   "is_offlabel": false,
+  "confidence": 0.95,
   "analysis": {
     "indication_match": {
       "score": 0.95,

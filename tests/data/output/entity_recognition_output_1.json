@@ -4,9 +4,9 @@
             "name": "阿莫西林",
             "matches": [
                 {
-                    "id": "drug_001",
-                    "standard_name": "阿莫西林",
-                    "score": 0.9
+                    "id": "f675e7141ab0401189254746e41dc2a8",
+                    "standard_name": "阿莫西林片",
+                    "score": 16.188377
                 }
             ]
         }
@@ -16,15 +16,15 @@
             "name": "急性链球菌性咽炎",
             "matches": [
                 {
-                    "id": "disease_001",
-                    "standard_name": "急性链球菌性咽炎",
-                    "score": 0.9
+                    "id": "disease_1759",
+                    "standard_name": "化脓性链球菌咽炎",
+                    "score": 16.509794
                 }
             ]
         }
     ],
     "context": {
-        "description": "患者因发热、咽痛就诊",
+        "description": "患者因发热、咽痛就诊，考虑急性链球菌性咽炎，拟使用阿莫西林治疗。",
         "raw_data": {
             "description": "患者因发热、咽痛就诊，考虑急性链球菌性咽炎，拟使用阿莫西林治疗。",
             "patient_info": {

@@ -10,7 +10,12 @@ from openai import OpenAI
 from elasticsearch import Elasticsearch
 
 from src.utils import get_elastic_client, load_env
-from .models import RecognizedEntities, Drug, Disease, Context, DrugMatch, DiseaseMatch
+from .models import (
+    RecognizedEntities, RecognizedDrug as Drug, 
+    RecognizedDisease as Disease, Context, 
+    DrugMatch, DiseaseMatch
+)
+from .prompt import create_entity_recognition_prompt
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -174,7 +179,7 @@ class EntityRecognizer:
                 raise ValueError("输入数据必须包含非空的description字段")
 
             # 1. 使用LLM进行初步实体识别
-            prompt = self._create_prompt(input_data)
+            prompt = create_entity_recognition_prompt(input_data)
             
             completion = self.client.chat.completions.create(
                 extra_headers={
@@ -250,42 +255,3 @@ class EntityRecognizer:
         except Exception as e:
             logger.error(f"识别实体时发生错误: {str(e)}")
             raise
-    
-    def _create_prompt(self, input_data: Dict[str, Any]) -> str:
-        """创建用于实体识别的prompt
-        
-        Args:
-            input_data: 输入数据
-            
-        Returns:
-            str: 格式化的prompt
-        """
-        return f"""请从以下医疗记录中识别所有的药品和疾病实体。
-
-医疗记录：
-{json.dumps(input_data, ensure_ascii=False)}
-
-请以JSON格式返回识别结果，包含以下字段：
-{{
-    "drugs": [
-        {{
-            "name": "药品名称1"
-        }},
-        {{
-            "name": "药品名称2"
-        }}
-    ],
-    "diseases": [
-        {{
-            "name": "疾病名称1"
-        }},
-        {{
-            "name": "疾病名称2"
-        }}
-    ],
-    "context": {{
-        "description": "相关描述"
-    }}
-}}
-
-在返回结果之前，请先用<think>标签记录你的思考过程。"""
