@@ -1,1 +1,0 @@
-DATA AND DB LOCATION: /Users/jiandong/Downloads/dataset/medical/db
