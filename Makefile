@@ -159,18 +159,28 @@ es-logs: ## 查看 Elasticsearch 日志
 es-status: ## 查看 Elasticsearch 状态
 	@$(COMPOSE) -f services/elasticsearch/docker-compose.yml ps
 
+postgres-build: ## 构建 PostgreSQL 镜像
+	@echo "$(BLUE)构建 PostgreSQL...$(NC)"
+	@$(COMPOSE) -f services/postgres/docker-compose.yaml build
+	@echo "$(GREEN)✓ 完成$(NC)"
+
 postgres-up: ## 启动 PostgreSQL
 	@echo "$(BLUE)启动 PostgreSQL...$(NC)"
-	@$(COMPOSE) -f services/postgresql/docker-compose.yaml up -d
+	@$(COMPOSE) -f services/postgres/docker-compose.yaml up -d
 	@echo "$(GREEN)✓ 完成$(NC)"
 
 postgres-down: ## 停止 PostgreSQL
 	@echo "$(BLUE)停止 PostgreSQL...$(NC)"
-	@$(COMPOSE) -f services/postgresql/docker-compose.yaml down
+	@$(COMPOSE) -f services/postgres/docker-compose.yaml down
+	@echo "$(GREEN)✓ 完成$(NC)"
+
+postgres-restart: ## 重启 PostgreSQL
+	@echo "$(BLUE)重启 PostgreSQL...$(NC)"
+	@$(COMPOSE) -f services/postgres/docker-compose.yaml restart
 	@echo "$(GREEN)✓ 完成$(NC)"
 
 postgres-logs: ## 查看 PostgreSQL 日志
-	@$(COMPOSE) -f services/postgresql/docker-compose.yaml logs -f
+	@$(COMPOSE) -f services/postgres/docker-compose.yaml logs -f
 
 postgres-status: ## 查看 PostgreSQL 状态
-	@$(COMPOSE) -f services/postgresql/docker-compose.yaml ps
+	@$(COMPOSE) -f services/postgres/docker-compose.yaml ps

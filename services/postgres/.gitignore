@@ -1,0 +1,28 @@
+# 环境变量文件（包含敏感信息）
+.env
+
+# PostgreSQL 数据目录
+data/*
+!data/.gitkeep
+
+# PostgreSQL 日志文件
+data/pg_log/*
+
+# 备份文件
+*.sql.backup
+backup_*.sql
+
+# 日志文件
+*.log
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Python 虚拟环境（如果需要运行迁移脚本）
+venv/
+__pycache__/
+*.pyc
