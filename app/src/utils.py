@@ -13,9 +13,8 @@ def load_env():
     
     # 验证必要的环境变量是否存在
     required_vars = [
-        'HF_API_KEY',
-        'OPENROUTER_API_KEY', 
-        'ELASTIC_PASSWORD',  # 添加ES密码到必需变量
+        'DEEPSEEK_API_KEY',
+        'ELASTIC_PASSWORD',
     ]
     
     missing_vars = [var for var in required_vars if not os.getenv(var)]

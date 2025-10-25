@@ -7,7 +7,7 @@ from datetime import datetime
 from .models import Case
 from .entity_recognition import EntityRecognizer
 from .indication_analysis import IndicationAnalyzer
-from .analysis import OfflabelAnalyzer
+from .result_generator import ResultGenerator
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,19 +38,10 @@ def process_case(input_data: Dict[str, Any]) -> Dict[str, Any]:
         analyzer = IndicationAnalyzer()
         case.analysis_result = analyzer.analyze_indication(case)
         
-        # 4. 深入分析（目前为预留功能）
-        logger.info("开始深入分析...")
-        offlabel_analyzer = OfflabelAnalyzer()
-        additional_analysis = offlabel_analyzer.analyze(case)
-        
-        # 5. 生成结果
+        # 4. 生成结果
         logger.info("生成分析结果...")
         generator = ResultGenerator()
         final_result = generator.generate(case)
-        
-        # 添加深入分析结果（如果有）
-        if additional_analysis:
-            final_result['additional_analysis'] = additional_analysis
         
         return final_result
         

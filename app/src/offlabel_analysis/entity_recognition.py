@@ -34,15 +34,13 @@ class EntityRecognizer:
         self.drugs_index = 'drugs'
         self.diseases_index = 'diseases'
         
-        # OpenAI/OpenRouter设置
+        # DeepSeek API 设置
         load_env()
         self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.getenv("OPENROUTER_API_KEY")
+            api_key=os.getenv("DEEPSEEK_API_KEY"),
+            base_url="https://api.deepseek.com"
         )
-        self.model = "deepseek/deepseek-r1-distill-qwen-32b"
-        self.site_url = os.getenv("SITE_URL", "http://localhost:3000")
-        self.site_name = os.getenv("SITE_NAME", "Medical GraphRAG")
+        self.model = "deepseek-chat"
     
     def _clean_json_string(self, json_str: str) -> str:
         """清理JSON字符串，移除无效字符
@@ -182,10 +180,6 @@ class EntityRecognizer:
             prompt = create_entity_recognition_prompt(input_data)
             
             completion = self.client.chat.completions.create(
-                extra_headers={
-                    "HTTP-Referer": self.site_url,
-                    "X-Title": self.site_name,
-                },
                 model=self.model,
                 messages=[
                     {"role": "user", "content": prompt}

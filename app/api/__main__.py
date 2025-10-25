@@ -187,8 +187,21 @@ async def analyze_offlabel(request: AnalysisRequest):
     分析处方药品对于患者诊断疾病的适用性，判断是否为合理超适应症用药。
     """
     try:
+        # 构造描述
+        description = f"患者{request.patient.age}岁{request.patient.gender}性，诊断为{request.patient.diagnosis}"
+        if request.patient.medical_history:
+            description += f"，{request.patient.medical_history}"
+        description += f"。处方{request.prescription.drug_name}"
+        if request.prescription.dosage:
+            description += f" {request.prescription.dosage}"
+        if request.prescription.frequency:
+            description += f" {request.prescription.frequency}"
+        if request.clinical_context:
+            description += f"。{request.clinical_context}"
+        
         # 构造输入数据
         input_data = {
+            "description": description,
             "patient_info": {
                 "age": request.patient.age,
                 "gender": request.patient.gender,

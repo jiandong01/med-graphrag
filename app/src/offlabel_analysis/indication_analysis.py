@@ -33,15 +33,13 @@ class IndicationAnalyzer:
         """
         self.es = es or get_elastic_client()
         
-        # OpenAI/OpenRouter设置
+        # DeepSeek API 设置
         load_env()
         self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.getenv("OPENROUTER_API_KEY")
+            api_key=os.getenv("DEEPSEEK_API_KEY"),
+            base_url="https://api.deepseek.com"
         )
-        self.model = "deepseek/deepseek-r1-distill-qwen-32b"
-        self.site_url = os.getenv("SITE_URL", "http://localhost:3000")
-        self.site_name = os.getenv("SITE_NAME", "Medical GraphRAG")
+        self.model = "deepseek-chat"
         
         # 初始化其他模块
         self.rule_analyzer = RuleAnalyzer()
@@ -171,18 +169,13 @@ class IndicationAnalyzer:
 
             # 调用模型
             completion = self.client.chat.completions.create(
-                extra_headers={
-                    "HTTP-Referer": self.site_url,
-                    "X-Title": self.site_name,
-                },
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "你是一个专业的医学分析助手，请严格按照要求的JSON格式返回分析结果，不要添加任何额外的说明或注释。"},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.1,  # 降低随机性
-                max_tokens=2000,
-                response_format={"type": "json_object"}  # 明确要求JSON格式响应
+                temperature=0.1,
+                max_tokens=2000
             )
             
             response = completion.choices[0].message.content

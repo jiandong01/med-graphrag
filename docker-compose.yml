@@ -11,8 +11,7 @@ services:
       ES_HOST: http://elasticsearch:9200
       ES_USERNAME: elastic
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-changeme}
-      HF_API_KEY: ${HF_API_KEY}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
     volumes:
       - ./logs:/app/logs
       - ./outputs:/app/outputs
