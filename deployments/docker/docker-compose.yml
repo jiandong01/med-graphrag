@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile
+    container_name: medical-graphrag-api
+    ports:
+      - "8000:8000"
+    environment:
+      ES_HOST: ${ES_HOST:-http://elasticsearch:9200}
+      ES_USERNAME: ${ES_USERNAME:-elastic}
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-changeme}
+      HF_API_KEY: ${HF_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+    volumes:
+      - ../../logs:/app/logs
+      - ../../outputs:/app/outputs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

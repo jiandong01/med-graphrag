@@ -13,10 +13,10 @@ import time
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from src.drug.drug_indexer import DrugIndexer
-from src.drug.drug_normalizer import DrugNormalizer
-from src.drug.tag_preprocessor import TagPreprocessor
-from src.utils import get_elastic_client, setup_logging, load_env, load_config, ensure_directories
+from app.src.drug.drug_indexer import DrugIndexer
+from app.src.drug.drug_normalizer import DrugNormalizer
+from app.src.drug.tag_preprocessor import TagPreprocessor
+from app.src.utils import get_elastic_client, setup_logging, load_env, load_config, ensure_directories
 
 logger = setup_logging(__name__)
 

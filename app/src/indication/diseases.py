@@ -8,8 +8,8 @@ from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
 from tqdm import tqdm
 
-from src.utils import get_elastic_client, setup_logging, load_env
-from src.indication.es_mappings import DISEASE_MAPPING
+from app.src.utils import get_elastic_client, setup_logging, load_env
+from app.src.indication.es_mappings import DISEASE_MAPPING
 
 logger = setup_logging(__name__)
 

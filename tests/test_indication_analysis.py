@@ -4,14 +4,14 @@ import os
 import json
 import pytest
 import logging
-from src.offlabel_analysis.indication_analysis import IndicationAnalyzer
-from src.offlabel_analysis.models import (
+from app.src.offlabel_analysis.indication_analysis import IndicationAnalyzer
+from app.src.offlabel_analysis.models import (
     Case, AnalysisResult, RecognizedEntities, Context,
     RecognizedDrug, RecognizedDisease, DrugMatch, DiseaseMatch
 )
-from src.utils import get_elastic_client, load_env
-from src.offlabel_analysis.utils import create_case_from_entity_recognition
-from src.offlabel_analysis.prompt import create_indication_analysis_prompt
+from app.src.utils import get_elastic_client, load_env
+from app.src.offlabel_analysis.utils import create_case_from_entity_recognition
+from app.src.offlabel_analysis.prompt import create_indication_analysis_prompt
 
 # 加载环境变量
 load_env()

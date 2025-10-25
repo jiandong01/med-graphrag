@@ -1,5 +1,5 @@
 from datetime import datetime
-from src.offlabel_analysis.models import (
+from app.src.offlabel_analysis.models import (
     Case, AnalysisResult, RecognizedEntities, Context,
     RecognizedDrug, RecognizedDisease, DrugMatch, DiseaseMatch
 )

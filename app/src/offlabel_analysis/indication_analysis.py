@@ -8,7 +8,7 @@ from typing import Dict, List, Any
 from openai import OpenAI
 from elasticsearch import Elasticsearch
 
-from src.utils import get_elastic_client, load_env
+from app.src.utils import get_elastic_client, load_env
 from .models import (
     Case, AnalysisResult, EnhancedCase, Analysis, Recommendation, 
     IndicationMatch, MechanismSimilarity, EvidenceSupport

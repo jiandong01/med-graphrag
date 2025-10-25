@@ -3,9 +3,9 @@
 import argparse
 from pathlib import Path
 
-from src.indication.indications import IndicationProcessor
-from src.indication.diseases import DiseaseManager
-from src.utils import setup_logging, load_env, load_config, ensure_directories
+from app.src.indication.indications import IndicationProcessor
+from app.src.indication.diseases import DiseaseManager
+from app.src.utils import setup_logging, load_env, load_config, ensure_directories
 
 logger = setup_logging(__name__)
 

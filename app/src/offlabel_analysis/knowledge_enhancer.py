@@ -3,7 +3,7 @@
 import logging
 from typing import Dict, List, Any
 from elasticsearch import Elasticsearch, NotFoundError
-from src.utils import get_elastic_client
+from app.src.utils import get_elastic_client
 from .models import Case, EnhancedCase
 
 logging.basicConfig(level=logging.INFO)

@@ -12,7 +12,7 @@ from tqdm import tqdm
 from openai import OpenAI
 from elasticsearch import Elasticsearch
 
-from src.utils import get_elastic_client, setup_logging, load_env, load_config, ensure_directories
+from app.src.utils import get_elastic_client, setup_logging, load_env, load_config, ensure_directories
 
 logger = setup_logging(__name__)
 

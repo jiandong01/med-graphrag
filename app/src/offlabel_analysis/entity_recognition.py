@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from openai import OpenAI
 from elasticsearch import Elasticsearch
 
-from src.utils import get_elastic_client, load_env
+from app.src.utils import get_elastic_client, load_env
 from .models import (
     RecognizedEntities, RecognizedDrug as Drug, 
     RecognizedDisease as Disease, Context, 

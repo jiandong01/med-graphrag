@@ -3,10 +3,10 @@
 import os
 import json
 import pytest
-from src.offlabel_analysis.entity_recognition import EntityRecognizer
-from src.offlabel_analysis.models import RecognizedEntities
-from src.offlabel_analysis.prompt import create_entity_recognition_prompt
-from src.utils import get_elastic_client, load_env
+from app.src.offlabel_analysis.entity_recognition import EntityRecognizer
+from app.src.offlabel_analysis.models import RecognizedEntities
+from app.src.offlabel_analysis.prompt import create_entity_recognition_prompt
+from app.src.utils import get_elastic_client, load_env
 
 # 加载环境变量
 load_env()

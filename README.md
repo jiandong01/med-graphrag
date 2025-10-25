@@ -14,63 +14,106 @@
 
 ```
 202502-medical-graphrag/
-├── src/
-│   ├── drug/                    # 药品数据处理
-│   │   ├── drug_pipeline.py     # ETL 数据管道
-│   │   ├── drug_indexer.py      # Elasticsearch 索引
-│   │   └── drug_normalizer.py   # 数据标准化
-│   ├── indication/              # 适应症处理
-│   │   ├── indications.py       # 适应症提取
-│   │   ├── diseases.py          # 疾病实体管理
-│   │   └── cli.py               # 命令行接口
-│   ├── offlabel_analysis/       # 超适应症分析
-│   │   ├── entity_recognition.py      # 实体识别
-│   │   ├── indication_analysis.py     # 适应症分析
-│   │   ├── knowledge_enhancer.py      # 知识增强
-│   │   ├── rule_analyzer.py           # 规则分析
-│   │   └── result_synthesizer.py      # 结果综合
-│   └── utils.py                 # 工具函数
-├── db/                          # 数据库配置
+├── app/                         # 应用层
+│   ├── api/                     # REST API 服务
+│   │   ├── __init__.py
+│   │   ├── __main__.py          # API 主入口
+│   │   ├── routers/             # API 路由模块
+│   │   └── README.md
+│   ├── src/                     # 核心业务逻辑
+│   │   ├── drug/                # 药品数据处理
+│   │   ├── indication/          # 适应症处理
+│   │   ├── offlabel_analysis/   # 超适应症分析
+│   │   └── utils.py
+│   ├── cli/                     # CLI 工具
+│   └── requirements.txt
+├── deployments/                 # 部署配置
+│   ├── docker/                  # Docker 配置
+│   │   ├── Dockerfile
+│   │   └── docker-compose.yml
+│   └── kubernetes/              # K8s 配置（待实现）
+├── services/                    # 基础设施服务
+│   ├── elasticsearch/           # Elasticsearch + Kibana
 │   ├── mysql/                   # MySQL 数据库
-│   ├── docker-elk/              # ELK Stack
-│   └── pgsql/                   # PostgreSQL (可选)
+│   └── postgresql/              # PostgreSQL + pgvector
 ├── tests/                       # 测试用例
 ├── examples/                    # 示例病例
+├── docs/                        # 文档
+│   └── development/             # 开发文档
+├── scripts/                     # 工具脚本
+├── Makefile                     # 运维命令
+├── docker-compose.yml           # 服务编排
 └── config.yaml                  # 配置文件
 ```
 
 ## 🔧 核心组件
 
-### 1. 药品数据处理 (drug/)
+### 1. 应用层 (app/)
 
-- **DrugPipeline**: 完整的 ETL 数据管道，从 MySQL 读取原始数据
-- **DrugIndexer**: 创建和管理 Elasticsearch 索引
-- **DrugNormalizer**: 药品信息标准化和分类处理
+#### API 服务 (app/api/)
+- **REST API**: 提供完整的 HTTP 接口
+- **Swagger 文档**: 自动生成的 API 文档
+- **健康检查**: 服务状态监控
 
-### 2. 适应症管理 (indication/)
+#### 核心业务逻辑 (app/src/)
 
+**药品数据处理 (drug/)**
+- **DrugPipeline**: 完整的 ETL 数据管道
+- **DrugIndexer**: Elasticsearch 索引管理
+- **DrugNormalizer**: 数据标准化处理
+
+**适应症管理 (indication/)**
 - **IndicationProcessor**: LLM 驱动的适应症提取
 - **DiseaseManager**: 疾病实体索引和检索
 - **CLI**: 命令行操作接口
 
-### 3. 超适应症分析 (offlabel_analysis/)
+**超适应症分析 (offlabel_analysis/)**
+- **EntityRecognizer**: 实体识别
+- **IndicationAnalyzer**: 适应症匹配分析
+- **KnowledgeEnhancer**: 知识图谱增强
+- **RuleAnalyzer**: 规则推理
+- **ResultSynthesizer**: 多维度结果综合
 
-- **EntityRecognizer**: 识别病例中的药品和疾病
-- **IndicationAnalyzer**: 分析适应症匹配情况
-- **KnowledgeEnhancer**: 从知识图谱获取补充信息
-- **RuleAnalyzer**: 基于规则的初步判断
-- **ResultSynthesizer**: 综合多维度结果
+### 2. 部署层 (deployments/)
+- **Docker**: 容器化部署配置
+- **Kubernetes**: 云原生部署（待实现）
+
+### 3. 基础设施层 (services/)
+- **Elasticsearch**: 全文检索和知识图谱存储
+- **MySQL**: 原始数据存储（可选）
+- **PostgreSQL**: 向量检索（可选）
 
 ## 🚀 快速开始
 
-### 环境要求
+### 方式一：使用 Docker Compose (推荐)
 
+**一键启动 API 服务**：
+
+```bash
+# 1. 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件，填入 API Keys
+
+# 2. 启动所有服务 (API + Elasticsearch + Kibana)
+docker compose up -d
+
+# 3. 访问服务
+# API 文档: http://localhost:8000/docs
+# API 服务: http://localhost:8000
+# Kibana: http://localhost:5601
+```
+
+详细说明见 [API 使用文档](api/README.md)
+
+### 方式二：本地开发模式
+
+**环境要求**：
 - Python 3.8+
 - Docker & Docker Compose
-- MySQL 8.0
+- MySQL 8.0 (可选)
 - Elasticsearch 8.x
 
-### 安装步骤
+**安装步骤**：
 
 1. **克隆项目**
    ```bash
@@ -84,64 +127,96 @@
    ```
 
 3. **配置环境变量**
-   
-   创建 `.env` 文件：
    ```bash
-   # LLM API Keys
-   HF_API_KEY=your_huggingface_api_key
-   OPENROUTER_API_KEY=your_openrouter_api_key
-   
-   # MySQL
-   MYSQL_USER=myuser
-   MYSQL_PASSWORD=mypassword
-   MYSQL_HOST=localhost
-   MYSQL_PORT=3306
-   MYSQL_DB=mydatabase
-   
-   # Elasticsearch
-   ES_HOST=http://localhost:9200
-   ES_USERNAME=elastic
-   ELASTIC_PASSWORD=changeme
+   cp .env.example .env
+   # 编辑 .env 文件
    ```
 
-4. **启动数据库服务**
+4. **启动 Elasticsearch**
    ```bash
-   # 启动 MySQL
-   cd db/mysql && docker compose up -d
-   
-   # 启动 ELK Stack
-   cd db/docker-elk && docker compose up -d
+   docker compose up -d elasticsearch
    ```
 
 ## 📖 使用说明
+
+### 使用 Makefile 管理服务
+
+```bash
+# 查看所有可用命令
+make help
+
+# 启动开发环境
+make dev
+
+# 查看服务状态
+make ps
+
+# 查看日志
+make logs
+
+# 健康检查
+make health
+
+# 运行测试
+make test
+```
 
 ### 1. 构建药品索引
 
 ```bash
 # 从 MySQL 导入药品数据到 Elasticsearch
-python src/drug/drug_pipeline.py --clear
+python app/src/drug/drug_pipeline.py --clear
+
+# 或使用 make 命令
+make data-import
 ```
 
 ### 2. 提取适应症信息
 
 ```bash
 # 处理适应症数据
-python src/indication/cli.py process-indications --output-dir outputs/indications
+python app/src/indication/cli.py process-indications --output-dir outputs/indications
 
 # 提取疾病实体
-python src/indication/cli.py process-diseases --data-dir outputs/indications
+python app/src/indication/cli.py process-diseases --data-dir outputs/indications
 ```
 
-### 3. 分析超适应症病例
+### 3. 分析超适应症病例（通过 API）
+
+```bash
+# 使用 curl 调用 API
+curl -X POST "http://localhost:8000/api/v1/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "patient": {
+      "age": 65,
+      "gender": "男",
+      "diagnosis": "心力衰竭"
+    },
+    "prescription": {
+      "drug_name": "美托洛尔缓释片",
+      "dosage": "47.5mg",
+      "frequency": "qd"
+    }
+  }'
+```
+
+或在 Python 中：
 
 ```python
-from src.offlabel_analysis.main import process_case
+from app.src.offlabel_analysis.main import process_case
 
 # 准备病例数据
 case_data = {
-    "patient_info": "患者信息",
-    "prescription": "处方信息",
-    "diagnosis": "诊断信息"
+    "patient_info": {
+        "age": 65,
+        "gender": "男",
+        "diagnosis": "心力衰竭"
+    },
+    "prescription": {
+        "drug_name": "美托洛尔缓释片",
+        "dosage": "47.5mg"
+    }
 }
 
 # 执行分析
