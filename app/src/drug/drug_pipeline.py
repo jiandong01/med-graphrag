@@ -17,23 +17,29 @@ from app.src.drug.drug_indexer import DrugIndexer
 from app.src.drug.drug_normalizer import DrugNormalizer
 from app.src.drug.tag_preprocessor import TagPreprocessor
 from app.src.utils import get_elastic_client, setup_logging, load_env, load_config, ensure_directories
-
-logger = setup_logging(__name__)
+import logging
 
 # Load environment variables
 load_env()
 
+# 使用简单的日志配置避免权限问题
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 class DrugPipeline:
     """药品数据处理管道"""
     
-    def __init__(self, mysql_url: str, es_config: Dict[str, Any]):
+    def __init__(self, db_url: str, es_config: Dict[str, Any]):
         """初始化
 
         Args:
-            mysql_url: MySQL连接URL
+            db_url: 数据库连接URL (支持 PostgreSQL 和 MySQL)
             es_config: Elasticsearch配置
         """
-        self.mysql_url = mysql_url
+        self.db_url = db_url
         self.es_config = es_config
         self.normalizer = None  # 延迟初始化
         self.logger = logging.getLogger(__name__)
@@ -45,25 +51,42 @@ class DrugPipeline:
         self.indexer = DrugIndexer(es_config=es_config)
 
     def fetch_data(self) -> tuple:
-        """从MySQL获取药品数据
+        """从数据库获取药品数据（支持 PostgreSQL 和 MySQL）
         
         Returns:
             tuple: (drugs_df, drug_details_df, categories_df)
         """
         try:
-            engine = create_engine(self.mysql_url)
+            engine = create_engine(self.db_url)
+            
+            # 判断数据库类型
+            is_postgres = 'postgresql' in self.db_url
             
             # 1. 获取药品基础信息，使用 GROUP BY 合并同一药品的多条记录
-            drugs_query = """
-                SELECT 
-                    id,
-                    MAX(name) as name,  -- 取最新的名称
-                    MAX(spec) as spec,  -- 取最新的规格
-                    MAX(create_time) as create_time,  -- 取最新的创建时间
-                    GROUP_CONCAT(DISTINCT parent_id) as parent_ids  -- 收集所有的 parent_id
-                FROM drugs_table
-                GROUP BY id
-            """
+            if is_postgres:
+                # PostgreSQL 使用 STRING_AGG
+                drugs_query = """
+                    SELECT 
+                        id,
+                        MAX(name) as name,
+                        MAX(spec) as spec,
+                        MAX(create_time) as create_time,
+                        STRING_AGG(DISTINCT parent_id::text, ',') as parent_ids
+                    FROM drugs_table
+                    GROUP BY id
+                """
+            else:
+                # MySQL 使用 GROUP_CONCAT
+                drugs_query = """
+                    SELECT 
+                        id,
+                        MAX(name) as name,
+                        MAX(spec) as spec,
+                        MAX(create_time) as create_time,
+                        GROUP_CONCAT(DISTINCT parent_id) as parent_ids
+                    FROM drugs_table
+                    GROUP BY id
+                """
             drugs_df = pd.read_sql(drugs_query, engine)
             
             # 2. 获取分类信息
@@ -123,7 +146,7 @@ class DrugPipeline:
         
         # 获取分类信息
         try:
-            engine = create_engine(self.mysql_url)
+            engine = create_engine(self.db_url)
             categories_query = """
                 SELECT id as category_id, category, parent_id
                 FROM categories_table
@@ -350,20 +373,19 @@ def main():
     args = parser.parse_args()
     
     try:
-        # 设置日志
-        logger = setup_logging(__name__, log_dir='logs')
-        
         # 加载配置
         config = load_config(args.config)
         
         # 确保所需目录存在
         ensure_directories(config)
         
-        # 从环境变量读取配置
-        mysql_url = (
-            f"mysql+mysqlconnector://{os.getenv('MYSQL_USER')}:"
-            f"{os.getenv('MYSQL_PASSWORD')}@{os.getenv('MYSQL_HOST', 'localhost')}:"
-            f"{os.getenv('MYSQL_PORT', '3306')}/{os.getenv('MYSQL_DB')}"
+        # 从环境变量读取配置（PostgreSQL）
+        db_url = (
+            f"postgresql://{os.getenv('POSTGRES_USER', 'postgres')}:"
+            f"{os.getenv('POSTGRES_PASSWORD', 'postgres')}@"
+            f"{os.getenv('POSTGRES_HOST', 'localhost')}:"
+            f"{os.getenv('POSTGRES_PORT', '5432')}/"
+            f"{os.getenv('POSTGRES_DB', 'medical')}"
         )
         
         es_config = {
@@ -375,7 +397,7 @@ def main():
         }
         
         # 初始化并运行管道
-        pipeline = DrugPipeline(mysql_url=mysql_url, es_config=es_config)
+        pipeline = DrugPipeline(db_url=db_url, es_config=es_config)
         
         # 运行管道
         pipeline.run(

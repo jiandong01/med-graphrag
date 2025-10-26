@@ -30,7 +30,7 @@ help: ## 显示帮助信息
 	@echo "  make status             查看所有状态"
 	@echo ""
 	@echo "$(GREEN)特定服务操作（格式: make <service>-<action>）:$(NC)"
-	@echo "  $(YELLOW)服务:$(NC) api, es, postgres"
+	@echo "  $(YELLOW)服务:$(NC) api, es, pg"
 	@echo "  $(YELLOW)操作:$(NC) build, up, down, restart, logs, status"
 	@echo ""
 	@echo "$(GREEN)示例:$(NC)"
@@ -159,28 +159,28 @@ es-logs: ## 查看 Elasticsearch 日志
 es-status: ## 查看 Elasticsearch 状态
 	@$(COMPOSE) -f services/elasticsearch/docker-compose.yml ps
 
-postgres-build: ## 构建 PostgreSQL 镜像
+pg-build: ## 构建 PostgreSQL 镜像
 	@echo "$(BLUE)构建 PostgreSQL...$(NC)"
 	@$(COMPOSE) -f services/postgres/docker-compose.yaml build
 	@echo "$(GREEN)✓ 完成$(NC)"
 
-postgres-up: ## 启动 PostgreSQL
+pg-up: ## 启动 PostgreSQL
 	@echo "$(BLUE)启动 PostgreSQL...$(NC)"
 	@$(COMPOSE) -f services/postgres/docker-compose.yaml up -d
 	@echo "$(GREEN)✓ 完成$(NC)"
 
-postgres-down: ## 停止 PostgreSQL
+pg-down: ## 停止 PostgreSQL
 	@echo "$(BLUE)停止 PostgreSQL...$(NC)"
 	@$(COMPOSE) -f services/postgres/docker-compose.yaml down
 	@echo "$(GREEN)✓ 完成$(NC)"
 
-postgres-restart: ## 重启 PostgreSQL
+pg-restart: ## 重启 PostgreSQL
 	@echo "$(BLUE)重启 PostgreSQL...$(NC)"
 	@$(COMPOSE) -f services/postgres/docker-compose.yaml restart
 	@echo "$(GREEN)✓ 完成$(NC)"
 
-postgres-logs: ## 查看 PostgreSQL 日志
+pg-logs: ## 查看 PostgreSQL 日志
 	@$(COMPOSE) -f services/postgres/docker-compose.yaml logs -f
 
-postgres-status: ## 查看 PostgreSQL 状态
+pg-status: ## 查看 PostgreSQL 状态
 	@$(COMPOSE) -f services/postgres/docker-compose.yaml ps

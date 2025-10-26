@@ -1,0 +1,49 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+env/
+venv/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# 数据目录（排除，避免权限问题）
+services/*/data
+logs/
+
+# 输出
+outputs/
+*.log
+
+# macOS
+.DS_Store
+._*
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose*.yml
+
+# 文档
+*.md
+docs/
+
+# 测试
+tests/
+examples/
+
+# 其他
+.env
+.env.*
+*.backup

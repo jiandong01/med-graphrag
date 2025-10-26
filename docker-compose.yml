@@ -36,7 +36,7 @@ services:
       - "9200:9200"
       - "9300:9300"
     volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
+      - ./services/elasticsearch/data:/usr/share/elasticsearch/data
     networks:
       - medical-network
     restart: unless-stopped
@@ -84,8 +84,6 @@ networks:
   medical-network:
     driver: bridge
 
-volumes:
-  elasticsearch-data:
-    driver: local
-  # postgres-data:
-  #   driver: local
+# volumes:
+#   elasticsearch-data:
+#     driver: local

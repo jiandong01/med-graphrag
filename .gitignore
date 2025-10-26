@@ -4,10 +4,8 @@
 .DS_Store
 
 # db
-db/mysql/docker-entrypoint-initdb.d/
-storage/
-secrets/
-outputs/
+services/*/data
+logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
