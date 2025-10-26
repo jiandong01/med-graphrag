@@ -26,14 +26,14 @@ class ResultGenerator:
                 "case_id": case.id,
                 "analysis_time": datetime.now().isoformat(),
                 "drug_info": {
-                    "id": case.recognized_entities.drug.id,
-                    "name": case.recognized_entities.drug.name,
-                    "standard_name": case.recognized_entities.drug.standard_name
+                    "id": case.recognized_entities.drugs[0].matches[0].id if (case.recognized_entities.drugs and case.recognized_entities.drugs[0].matches) else None,
+                    "name": case.recognized_entities.drugs[0].name if case.recognized_entities.drugs else None,
+                    "standard_name": case.recognized_entities.drugs[0].matches[0].standard_name if (case.recognized_entities.drugs and case.recognized_entities.drugs[0].matches) else None
                 },
                 "disease_info": {
-                    "id": case.recognized_entities.disease.id,
-                    "name": case.recognized_entities.disease.name,
-                    "standard_name": case.recognized_entities.disease.standard_name
+                    "id": case.recognized_entities.diseases[0].matches[0].id if (case.recognized_entities.diseases and case.recognized_entities.diseases[0].matches) else None,
+                    "name": case.recognized_entities.diseases[0].name if case.recognized_entities.diseases else None,
+                    "standard_name": case.recognized_entities.diseases[0].matches[0].standard_name if (case.recognized_entities.diseases and case.recognized_entities.diseases[0].matches) else None
                 },
                 "is_offlabel": case.analysis_result.is_offlabel,
                 "analysis_details": {

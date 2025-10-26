@@ -6,9 +6,9 @@ WORKDIR /app
 # 设置环境变量
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1
+    UV_SYSTEM_PYTHON=1
 
-# 配置 Debian 清华镜像源（通用方法）
+# 配置 Debian 清华镜像源
 RUN sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources && \
     sed -i 's|http://security.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources
 
@@ -21,14 +21,15 @@ RUN apt-get update && apt-get install -y \
 # 配置 pip 使用清华镜像源
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
-# 复制依赖文件
-COPY requirements.txt ./requirements.txt
-COPY app/requirements.txt ./app-requirements.txt
-
-# 安装 Python 依赖
+# 安装 uv（使用 pip）
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt && \
-    pip install -r app-requirements.txt
+    pip install uv
+
+# 复制项目配置文件（单一数据源）
+COPY pyproject.toml uv.lock ./
+
+# 使用 uv 安装依赖（从 pyproject.toml）
+RUN uv pip install --system -e .
 
 # 复制项目文件
 COPY . .

@@ -1,11 +1,16 @@
 # .gitignore
 .env
-*.log
-.DS_Store
 
 # db
 services/*/data
 logs/
+outputs/
+tasks/output
+tasks/state
+
+# basics
+*.log
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
