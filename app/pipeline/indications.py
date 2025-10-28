@@ -12,7 +12,7 @@ from tqdm import tqdm
 from openai import OpenAI
 from elasticsearch import Elasticsearch
 
-from app.src.utils import get_elastic_client, setup_logging, load_env, load_config, ensure_directories
+from app.src.utils import get_es_client, setup_logging, load_env, load_config, ensure_directories
 
 logger = setup_logging(__name__)
 
@@ -28,7 +28,7 @@ class IndicationProcessor:
         Args:
             es: Elasticsearch客户端实例
         """
-        self.es = es or get_elastic_client()
+        self.es = es or get_es_client()
         self.drugs_index = 'drugs'
         
         # OpenAI/OpenRouter设置

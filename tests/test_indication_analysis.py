@@ -4,14 +4,16 @@ import os
 import json
 import pytest
 import logging
-from app.src.offlabel_analysis.indication_analysis import IndicationAnalyzer
-from app.src.offlabel_analysis.models import (
+from app.inference.llm_reasoner import IndicationAnalyzer
+from app.inference.models import (
     Case, AnalysisResult, RecognizedEntities, Context,
     RecognizedDrug, RecognizedDisease, DrugMatch, DiseaseMatch
 )
-from app.src.utils import get_elastic_client, load_env
-from app.src.offlabel_analysis.utils import create_case_from_entity_recognition
-from app.src.offlabel_analysis.prompt import create_indication_analysis_prompt
+from app.shared import get_es_client, Config
+from app.inference.utils import create_case_from_entity_recognition
+from app.inference.prompt import create_indication_analysis_prompt
+
+load_env = Config.load_env
 
 # 加载环境变量
 load_env()
@@ -34,7 +36,7 @@ def set_log_level():
 @pytest.fixture(scope="module")
 def indication_analyzer():
     """创建 IndicationAnalyzer 实例"""
-    return IndicationAnalyzer(es=get_elastic_client())
+    return IndicationAnalyzer(es=get_es_client())
 
 def test_indication_analysis_case1(indication_analyzer, capsys):
     """测试适应症分析 - Case 1"""

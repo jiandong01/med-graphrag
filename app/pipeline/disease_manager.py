@@ -8,7 +8,7 @@ from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
 from tqdm import tqdm
 
-from app.src.utils import get_elastic_client, setup_logging, load_env
+from app.src.utils import get_es_client, setup_logging, load_env
 from app.src.indication.es_mappings import DISEASE_MAPPING
 
 logger = setup_logging(__name__)
@@ -25,7 +25,7 @@ class DiseaseManager:
         Args:
             es: Elasticsearch客户端实例
         """
-        self.es = es or get_elastic_client()
+        self.es = es or get_es_client()
         self.index_name = "diseases"
     
     def create_index(self, clear_existing: bool = False) -> None:

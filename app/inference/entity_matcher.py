@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from openai import OpenAI
 from elasticsearch import Elasticsearch
 
-from app.src.utils import get_elastic_client, load_env
+from app.shared import get_es_client, load_env
 from .models import (
     RecognizedEntities, RecognizedDrug as Drug, 
     RecognizedDisease as Disease, Context, 
@@ -30,7 +30,7 @@ class EntityRecognizer:
             es: Elasticsearch客户端实例
         """
         # Elasticsearch设置
-        self.es = es or get_elastic_client()
+        self.es = es or get_es_client()
         self.drugs_index = 'drugs'
         self.diseases_index = 'diseases'
         

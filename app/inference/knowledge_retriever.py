@@ -3,7 +3,7 @@
 import logging
 from typing import Dict, List, Any
 from elasticsearch import Elasticsearch, NotFoundError
-from app.src.utils import get_elastic_client
+from app.shared import get_es_client
 from .models import Case, EnhancedCase
 
 logging.basicConfig(level=logging.INFO)
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class KnowledgeEnhancer:
     def __init__(self, es: Elasticsearch = None):
-        self.es = es or get_elastic_client()
+        self.es = es or get_es_client()
         self.drugs_index = 'drugs'
         self.diseases_index = 'diseases'
         self.clinical_guidelines_index = 'clinical_guidelines' # TODO

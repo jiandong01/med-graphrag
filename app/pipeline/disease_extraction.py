@@ -1,6 +1,5 @@
 """
 疾病提取任务 - 使用search_after API（ES最佳实践）
-解决10000深度分页限制，保持高成功率
 
 使用方法:
     python tasks/extract_diseases_search_after.py --concurrency 20 --batch-size 200
@@ -21,11 +20,10 @@ import httpx
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from elasticsearch import Elasticsearch
-from app.src.utils import get_elastic_client, setup_logging, load_env
+from app.shared import get_es_client, setup_logging, Config
 
-load_env()
-logger = setup_logging("disease_extraction_search_after", log_dir="tasks/logs")
-
+Config.load_env()
+logger = setup_logging("disease_extraction", log_dir="data/cache/logs")
 
 class AsyncDiseaseExtractionSearchAfter:
     """使用search_after API的异步疾病提取任务"""
@@ -52,7 +50,7 @@ class AsyncDiseaseExtractionSearchAfter:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
         
-        self.es = get_elastic_client()
+        self.es = get_es_client()
         self.drugs_index = 'drugs'
         self.state = self._load_state()
         self.semaphore = asyncio.Semaphore(concurrency)

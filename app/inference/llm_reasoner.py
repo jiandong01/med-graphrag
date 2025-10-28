@@ -8,13 +8,13 @@ from typing import Dict, List, Any
 from openai import OpenAI
 from elasticsearch import Elasticsearch
 
-from app.src.utils import get_elastic_client, load_env
+from app.shared import get_es_client, load_env
 from .models import (
     Case, AnalysisResult, EnhancedCase, Analysis, Recommendation, 
     IndicationMatch, MechanismSimilarity, EvidenceSupport
 )
-from .rule_analyzer import RuleAnalyzer
-from .knowledge_enhancer import KnowledgeEnhancer
+from .rule_checker import RuleAnalyzer
+from .knowledge_retriever import KnowledgeEnhancer
 from .result_synthesizer import ResultSynthesizer
 from .prompt import create_indication_analysis_prompt
 
@@ -31,7 +31,7 @@ class IndicationAnalyzer:
         Args:
             es: Elasticsearch客户端实例
         """
-        self.es = es or get_elastic_client()
+        self.es = es or get_es_client()
         
         # DeepSeek API 设置
         load_env()

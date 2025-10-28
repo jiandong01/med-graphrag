@@ -3,10 +3,12 @@
 
 # db
 services/*/data
-logs/
-outputs/
-tasks/output
-tasks/state
+
+# Data - 可重建的缓存和导出
+data/cache/
+data/exports/
+data/raw/
+data/processed/
 
 # basics
 *.log

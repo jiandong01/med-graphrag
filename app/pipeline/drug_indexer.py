@@ -4,7 +4,7 @@ from typing import Dict, List, Any
 from elasticsearch import Elasticsearch
 from tqdm import tqdm
 
-from app.src.utils import get_elastic_client
+from app.src.utils import get_es_client
 
 logger = logging.getLogger(__name__)
 

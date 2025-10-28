@@ -14,7 +14,7 @@ from datetime import datetime
 # 添加项目根目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.src.utils import get_elastic_client, load_env, setup_logging
+from app.src.utils import get_es_client, load_env, setup_logging
 from app.src.offlabel_analysis.main import process_case, batch_process
 from app.src.offlabel_analysis.entity_recognition import EntityRecognizer
 from app.src.offlabel_analysis.knowledge_enhancer import KnowledgeEnhancer
@@ -127,7 +127,7 @@ async def startup_event():
     global es_client
     try:
         logger.info("正在初始化 Elasticsearch 客户端...")
-        es_client = get_elastic_client()
+        es_client = get_es_client()
         
         # 测试连接
         if es_client.ping():

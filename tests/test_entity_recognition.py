@@ -3,10 +3,12 @@
 import os
 import json
 import pytest
-from app.src.offlabel_analysis.entity_recognition import EntityRecognizer
-from app.src.offlabel_analysis.models import RecognizedEntities
-from app.src.offlabel_analysis.prompt import create_entity_recognition_prompt
-from app.src.utils import get_elastic_client, load_env
+from app.inference.entity_matcher import EntityRecognizer
+from app.inference.models import RecognizedEntities
+from app.inference.prompt import create_entity_recognition_prompt
+from app.shared import get_es_client, Config
+
+load_env = Config.load_env
 
 # 加载环境变量
 load_env()
@@ -22,7 +24,7 @@ def load_test_data(filename):
 @pytest.fixture(scope="module")
 def entity_recognizer():
     """创建 EntityRecognizer 实例"""
-    es_client = get_elastic_client()
+    es_client = get_es_client()
     return EntityRecognizer(es=es_client)
 
 @pytest.mark.parametrize("input_file,output_file", [
