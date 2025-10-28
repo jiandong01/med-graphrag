@@ -100,7 +100,7 @@ class AsyncDiseaseExtractionSearchAfter:
         Returns:
             Tuple[List[Dict], Optional[List]]: (药品列表, 最后的sort值)
         """
-        # 构建查询（只使用create_time排序，避免_id问题）
+        # 构建查询（使用create_time + id复合排序，确保唯一性）
         query = {
             "size": self.batch_size,
             "_source": ["id", "name", "indications"],
@@ -108,7 +108,8 @@ class AsyncDiseaseExtractionSearchAfter:
                 "exists": {"field": "indications"}
             },
             "sort": [
-                {"create_time": {"order": "asc", "unmapped_type": "date"}}
+                {"create_time": {"order": "asc", "unmapped_type": "date"}},
+                {"id.keyword": {"order": "asc"}}  # 添加id作为第二排序，确保唯一性
             ]
         }
         
@@ -326,6 +327,17 @@ class AsyncDiseaseExtractionSearchAfter:
                 
                 batch_results = await self.process_batch_async(batch_drugs, current_batch)
                 self.save_batch_results(batch_results)
+                
+                # 检查批次成功率
+                batch_total = batch_results['success_count'] + batch_results['failure_count']
+                if batch_total > 0:
+                    batch_success_rate = (batch_results['success_count'] / batch_total) * 100
+                    if batch_success_rate < 99.0:
+                        logger.error(f"⚠️  批次成功率过低 ({batch_success_rate:.1f}%)，自动停止!")
+                        logger.error(f"可能原因: API余额不足或网络问题")
+                        logger.error(f"请检查API状态后重新运行: --resume")
+                        self._save_state()
+                        sys.exit(1)
                 
                 # 更新状态
                 self.state['current_batch'] = current_batch + 1
