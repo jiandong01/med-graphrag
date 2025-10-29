@@ -13,8 +13,8 @@ services:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-changeme}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
     volumes:
-      - ./logs:/app/logs
-      - ./outputs:/app/outputs
+      - ./data/cache/logs:/app/logs
+      - ./data/exports:/app/exports
     depends_on:
       elasticsearch:
         condition: service_healthy

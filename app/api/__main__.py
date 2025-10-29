@@ -14,16 +14,16 @@ from datetime import datetime
 # 添加项目根目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.src.utils import get_es_client, load_env, setup_logging
-from app.src.offlabel_analysis.main import process_case, batch_process
-from app.src.offlabel_analysis.entity_recognition import EntityRecognizer
-from app.src.offlabel_analysis.knowledge_enhancer import KnowledgeEnhancer
+from app.shared import get_es_client, Config, setup_logging
+from app.inference.engine import process_case, batch_process
+from app.inference.entity_matcher import EntityRecognizer
+from app.inference.knowledge_retriever import KnowledgeEnhancer
 
 # 加载环境变量
-load_env()
+Config.load_env()
 
 # 配置日志
-logger = setup_logging("api", log_dir="logs")
+logger = setup_logging("api", log_dir="data/cache/logs")
 
 # 创建 FastAPI 应用
 app = FastAPI(
