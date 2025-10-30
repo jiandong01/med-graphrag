@@ -63,14 +63,41 @@ class RuleAnalyzer:
         return result
 
     def exact_match(self, drug_info: Dict, disease_info: Dict) -> str:
-        """精确匹配检查"""
+        """精确匹配检查 - 严格的字符串匹配
+        
+        检查疾病名称是否在药品适应症中：
+        1. 如果有indications_list（结构化疾病列表），使用精确匹配
+        2. 如果只有indications（原始文本），使用模糊匹配（向后兼容）
+        """
         disease_name = disease_info.get("name", "")
         if not disease_name:
             return ""
-        disease_name = disease_name.lower()
-        for indication in drug_info.get("indications", []):
-            if disease_name == indication.lower():
+        
+        disease_name_lower = disease_name.lower()
+        indications = drug_info.get("indications", [])
+        
+        # 确保indications是列表
+        if isinstance(indications, str):
+            indications = [indications]
+        
+        for indication in indications:
+            if not indication:
+                continue
+                
+            indication_lower = indication.lower()
+            
+            # 严格的精确匹配：完全相等
+            # 这适用于indications_list（已经是疾病名称列表）
+            if disease_name_lower == indication_lower:
                 return indication
+            
+            # 如果适应症是长句（包含"用于"、"治疗"等词），进行子串匹配（向后兼容）
+            # 仅当indication明显是长句时才使用
+            if len(indication) > 20 and any(keyword in indication_lower for keyword in ["用于", "治疗", "适用于"]):
+                # 疾病名完整出现在适应症中
+                if disease_name_lower in indication_lower:
+                    return indication
+        
         return ""
 
     def synonym_match(self, drug_info: Dict, disease_info: Dict) -> str:

@@ -74,6 +74,9 @@ DRUG_INDEX_MAPPING = {
                 "type": "text",
                 "analyzer": "drug_analyzer"
             },
+            "indications_list": {
+                "type": "keyword"
+            },
             "contraindications": {
                 "type": "text",
                 "analyzer": "drug_analyzer"

@@ -113,6 +113,12 @@ def create_indication_analysis_prompt(
 3. 即使缺少部分数据，也请尽可能基于现有信息给出合理的分析和建议。
 4. 在结果中，请明确指出哪些结论是基于完整数据得出的，哪些是在数据缺失情况下的推测。
 
+**重要：超适应症判断规则**
+- 适应症匹配判断应该**严格基于字符串匹配**，不要做医学知识推理
+- 检查患者诊断（{diagnosis}）是否**精确出现**在药品适应症列表中
+- 如果患者诊断不在适应症列表中，即使医学上属于相关疾病，也应该标记为无匹配
+- 例如：即使"21-羟化酶缺乏症"医学上属于"先天性肾上腺皮质增生症"，但如果适应症中只写了后者，也应该判定为不匹配
+
 请按照以下格式返回分析结果（注意：必须是合法的JSON格式，不要添加任何注释或说明）：
 
 {{
@@ -121,12 +127,12 @@ def create_indication_analysis_prompt(
   "analysis": {{
     "indication_match": {{
       "score": 0.9,
-      "matching_indication": "标准适应症名称",
-      "reasoning": "匹配度分析原因"
+      "matching_indication": "精确匹配到的适应症文本（如果有）或'无'",
+      "reasoning": "说明是否找到精确字符串匹配"
     }},
     "mechanism_similarity": {{
       "score": 0.8,
-      "reasoning": "机制相似性分析说明"
+      "reasoning": "药理机制分析说明（仅作参考，不影响超适应症判断）"
     }},
     "evidence_support": {{
       "level": "B",

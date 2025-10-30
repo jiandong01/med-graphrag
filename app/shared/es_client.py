@@ -20,7 +20,7 @@ def get_es_client() -> Elasticsearch:
         return Elasticsearch(
             hosts=[os.getenv('ES_HOST', 'http://localhost:9200')],
             basic_auth=(
-                os.getenv('ES_USERNAME', 'elastic'),
+                os.getenv('ELASTIC_USERNAME', 'elastic'),
                 os.getenv('ELASTIC_PASSWORD', 'elastic')
             ),
             request_timeout=30,

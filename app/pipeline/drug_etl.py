@@ -389,10 +389,10 @@ def main():
         )
         
         es_config = {
-            'hosts': [os.getenv('ES_HOST', 'http://localhost:9200')],
+            'hosts': [os.getenv('ELASTIC_HOST', 'http://localhost:9200')],
             'basic_auth': (
-                os.getenv('ES_USERNAME', 'elastic'),
-                os.getenv('ES_PASSWORD', 'changeme')
+                os.getenv('ELASTIC_USERNAME', 'elastic'),
+                os.getenv('ELASTIC_PASSWORD', 'changeme')
             )
         }
         

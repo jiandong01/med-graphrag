@@ -84,38 +84,67 @@ class EnhancedCase:
 
 @dataclass
 class IndicationMatch:
-    score: float
+    """适应症匹配结果（规则判断）"""
+    score: float  # 0.0表示无匹配，1.0表示精确匹配
     matching_indication: str
     reasoning: str
 
 @dataclass
 class MechanismSimilarity:
+    """机制相似度分析（AI辅助）"""
     score: float
     reasoning: str
 
 @dataclass
 class EvidenceSupport:
-    level: str
-    description: str
+    """证据支持（AI辅助）"""
+    level: str  # A/B/C/D 证据等级
+    clinical_guidelines: List[Dict] = None  # 临床指南
+    expert_consensus: List[Dict] = None     # 专家共识
+    research_papers: List[Dict] = None      # 研究文献
+    description: str = ""
 
 @dataclass
-class Analysis:
-    indication_match: IndicationMatch
+class OpenEvidence:
+    """开放证据（AI辅助分析）"""
     mechanism_similarity: MechanismSimilarity
     evidence_support: EvidenceSupport
 
 @dataclass
 class Recommendation:
+    """推荐建议"""
     decision: str
     explanation: str
     risk_assessment: str
 
 @dataclass
+class AnalysisDetails:
+    """分析详情"""
+    indication_match: IndicationMatch     # 规则判断
+    open_evidence: OpenEvidence           # AI辅助
+    recommendation: Recommendation        # 推荐建议
+
+@dataclass
+class DrugInfo:
+    """药品信息"""
+    id: str
+    name: str
+    standard_name: str
+
+@dataclass
+class DiseaseInfo:
+    """疾病信息"""
+    id: Optional[str]
+    name: str
+    standard_name: Optional[str]
+
+@dataclass
 class AnalysisResult:
-    """分析结果"""
-    is_offlabel: bool
-    confidence: float
-    analysis: Analysis
-    recommendation: Recommendation
-    evidence_synthesis: Dict[str, Any]
+    """分析结果 - 重构后的结构"""
+    case_id: str
+    analysis_time: str
+    drug_info: DrugInfo
+    disease_info: DiseaseInfo
+    is_offlabel: bool  # 严格规则判断
+    analysis_details: AnalysisDetails
     metadata: Dict[str, Any]

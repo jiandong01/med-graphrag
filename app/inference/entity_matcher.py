@@ -89,7 +89,9 @@ class EntityRecognizer:
         return think_content, self._clean_json_string(json_str)
     
     def _search_drug(self, name: str, unique: bool = False) -> List[Dict]:
-        """在ES中搜索药品
+        """在ES中搜索药品 - 优先精确匹配
+        
+        使用分层策略：先精确匹配，再模糊匹配，并验证结果
         
         Args:
             name: 药品名称
@@ -99,7 +101,34 @@ class EntityRecognizer:
             List[Dict]: 匹配的药品信息列表
         """
         try:
-            query = {
+            # 先尝试精确term匹配
+            exact_query = {
+                "query": {
+                    "bool": {
+                        "should": [
+                            {"term": {"name.keyword": name}},
+                            {"match_phrase": {"name": name}}
+                        ]
+                    }
+                },
+                "size": 1 if unique else 3
+            }
+            result = self.es.search(index=self.drugs_index, body=exact_query)
+            hits = result['hits']['hits']
+            
+            # 如果有高分精确匹配（>10分），直接返回
+            if hits and hits[0].get('_score', 0) > 10.0:
+                return [
+                    {
+                        'id': hit['_source'].get('id', ''),
+                        'name': hit['_source'].get('name', ''),
+                        '_score': hit.get('_score', 0)
+                    }
+                    for hit in hits[:1 if unique else 3]
+                ]
+            
+            # 否则使用模糊匹配
+            fuzzy_query = {
                 "query": {
                     "bool": {
                         "should": [
@@ -110,8 +139,9 @@ class EntityRecognizer:
                 },
                 "size": 1 if unique else 5
             }
-            result = self.es.search(index=self.drugs_index, body=query)
+            result = self.es.search(index=self.drugs_index, body=fuzzy_query)
             hits = result['hits']['hits']
+            
             return [
                 {
                     'id': hit['_source'].get('id', ''),
@@ -125,7 +155,9 @@ class EntityRecognizer:
             raise
     
     def _search_disease(self, name: str, unique: bool = False) -> List[Dict]:
-        """在ES中搜索疾病
+        """在ES中搜索疾病 - 精确term匹配
+        
+        使用term精确匹配，避免模糊匹配导致的错误
         
         Args:
             name: 疾病名称
@@ -135,20 +167,23 @@ class EntityRecognizer:
             List[Dict]: 匹配的疾病信息列表
         """
         try:
+            # 只使用term精确匹配，不进行模糊匹配
+            # 宁可匹配不上，也不要错误匹配
             query = {
                 "query": {
                     "bool": {
                         "should": [
-                            {"match": {"name": name}},
-                            {"match": {"sub_diseases.name": name}},
-                            {"match": {"related_diseases.name": name}}
+                            {"term": {"name.keyword": name}},  # keyword字段精确匹配
+                            {"match_phrase": {"name": name}}   # 短语完全匹配
                         ]
                     }
                 },
-                "size": 1 if unique else 5
+                "size": 1 if unique else 3
             }
             result = self.es.search(index=self.diseases_index, body=query)
             hits = result['hits']['hits']
+            
+            # 返回所有匹配结果（如果有的话）
             return [
                 {
                     'id': hit['_source'].get('id', ''),
@@ -218,19 +253,20 @@ class EntityRecognizer:
             diseases = []
             for disease_entity in initial_entities.get('diseases', []):
                 disease_matches = self._search_disease(disease_entity['name'], unique_results)
-                if disease_matches:  # 只有在找到匹配时才添加
-                    disease = Disease(
-                        name=disease_entity['name'],
-                        matches=[
-                            DiseaseMatch(
-                                id=match['id'],
-                                standard_name=match['name'],
-                                score=match['_score']
-                            )
-                            for match in disease_matches
-                        ]
-                    )
-                    diseases.append(disease)
+                # 保留LLM识别的疾病，即使ES没有匹配
+                # 这样可以用LLM抽取的疾病名来做适应症判断
+                disease = Disease(
+                    name=disease_entity['name'],
+                    matches=[
+                        DiseaseMatch(
+                            id=match['id'],
+                            standard_name=match['name'],
+                            score=match['_score']
+                        )
+                        for match in disease_matches
+                    ] if disease_matches else []  # 如果ES没匹配，matches为空列表
+                )
+                diseases.append(disease)
             
             # 构建上下文
             context = Context(

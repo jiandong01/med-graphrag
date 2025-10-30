@@ -8,8 +8,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      ES_HOST: http://elasticsearch:9200
-      ES_USERNAME: elastic
+      ELASTIC_HOST: http://elasticsearch:9200
+      ELASTIC_USERNAME: ${ELASTIC_USERNAME:-elastic}
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-changeme}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
     volumes:
@@ -41,7 +41,7 @@ services:
       - medical-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -u elastic:${ELASTIC_PASSWORD:-changeme} -f http://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD-SHELL", "curl -u {ELASTIC_USERNAME:-elastic}:${ELASTIC_PASSWORD:-changeme} -f http://localhost:9200/_cluster/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -53,8 +53,9 @@ services:
     container_name: medical-kibana
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_USERNAME=${ELASTIC_USERNAME:-elastic}
       - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD:-changeme}
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=min-32-byte-long-strong-encryption-key
     ports:
       - "5601:5601"
     depends_on:
@@ -70,7 +71,7 @@ services:
   #   container_name: medical-postgres
   #   environment:
   #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  #     POSTGRELASTIC_PASSWORD: ${POSTGRELASTIC_PASSWORD:-postgres}
   #     POSTGRES_DB: medical
   #   ports:
   #     - "5433:5432"

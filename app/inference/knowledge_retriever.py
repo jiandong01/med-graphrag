@@ -194,8 +194,16 @@ class KnowledgeEnhancer:
         """更新药品信息"""
         drug_info.id = data.get('id')
         drug_info.name = data.get('name')
-        drug_info.standard_name = data.get('standard_name')
-        drug_info.indications = data.get('indications', [])
+        # 确保standard_name有值，如果没有则使用name
+        drug_info.standard_name = data.get('standard_name') or data.get('name')
+        
+        # 优先使用indications_list（结构化疾病列表），如果不存在则使用indications
+        indications_list = data.get('indications_list', [])
+        if indications_list:
+            drug_info.indications = indications_list
+        else:
+            drug_info.indications = data.get('indications', [])
+        
         drug_info.contraindications = data.get('contraindications', [])
         drug_info.precautions = data.get('precautions', [])
         drug_info.pharmacology = data.get('pharmacology')
@@ -205,6 +213,7 @@ class KnowledgeEnhancer:
         """更新疾病信息"""
         disease_info.id = data.get('id')
         disease_info.name = data.get('name')
-        disease_info.standard_name = data.get('standard_name')
+        # 确保standard_name有值，如果没有则使用name
+        disease_info.standard_name = data.get('standard_name') or data.get('name')
         disease_info.description = data.get('description')
         disease_info.icd_code = data.get('icd_code')

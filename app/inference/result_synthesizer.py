@@ -18,7 +18,7 @@ class ResultSynthesizer:
                   llm_result: Dict[str, Any], 
                   knowledge_context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        综合各个分析结果
+        综合各个分析结果 - 重构后的结构
         
         Args:
             rule_result: 规则分析结果
@@ -26,14 +26,14 @@ class ResultSynthesizer:
             knowledge_context: 知识上下文（包含临床指南、专家共识等）
         
         Returns:
-            Dict: 综合分析结果
+            Dict: 综合分析结果（符合新的数据结构）
         """
         # 计算加权得分
         weighted_scores = self._calculate_weighted_scores(
             rule_result, llm_result, knowledge_context
         )
         
-        # 确定最终的超适应症判断
+        # 确定最终的超适应症判断（严格规则判断）
         final_is_offlabel = self._determine_final_offlabel_status(
             rule_result, llm_result, weighted_scores
         )
@@ -48,26 +48,33 @@ class ResultSynthesizer:
             final_is_offlabel, weighted_scores, evidence_synthesis
         )
         
+        # 按照新的数据结构组织输出
         return {
-            "is_offlabel": final_is_offlabel,
-            "confidence": weighted_scores["total_score"],
-            "analysis": {
+            "is_offlabel": final_is_offlabel,  # 严格规则判断
+            "analysis_details": {
+                # 规则判断部分
                 "indication_match": {
-                    "score": weighted_scores["indication_match"],
+                    "score": rule_result.get("confidence", 0.0),  # 使用规则判断的置信度
                     "matching_indication": evidence_synthesis["matching_indication"],
                     "reasoning": " ".join(evidence_synthesis["indication_match_reasoning"])
                 },
-                "mechanism_similarity": {
-                    "score": weighted_scores["mechanism_similarity"],
-                    "reasoning": " ".join(evidence_synthesis["mechanism_reasoning"])
+                # AI辅助部分
+                "open_evidence": {
+                    "mechanism_similarity": {
+                        "score": weighted_scores["mechanism_similarity"],
+                        "reasoning": " ".join(evidence_synthesis["mechanism_reasoning"]) if evidence_synthesis["mechanism_reasoning"] else "未进行机制分析"
+                    },
+                    "evidence_support": {
+                        "level": evidence_synthesis["evidence_level"],
+                        "clinical_guidelines": knowledge_context.get("clinical_guidelines", []),
+                        "expert_consensus": knowledge_context.get("expert_consensus", []),
+                        "research_papers": knowledge_context.get("research_papers", []),
+                        "description": " ".join(evidence_synthesis["evidence_description"])
+                    }
                 },
-                "evidence_support": {
-                    "level": evidence_synthesis["evidence_level"],
-                    "description": " ".join(evidence_synthesis["evidence_description"])
-                }
+                # 推荐建议
+                "recommendation": final_recommendation
             },
-            "recommendation": final_recommendation,
-            "evidence_synthesis": evidence_synthesis,
             "metadata": {
                 "analysis_time": datetime.now().isoformat(),
                 "rule_confidence": rule_result.get("confidence", 0.0),
@@ -123,26 +130,30 @@ class ResultSynthesizer:
                                        rule_result: Dict, 
                                        llm_result: Dict, 
                                        weighted_scores: Dict) -> bool:
-        """确定最终的超适应症状态"""
-        # 如果规则分析明确判定为超适应症，且置信度高，则采用规则分析结果
-        if (rule_result.get("is_offlabel") and 
-            rule_result.get("confidence", 0) > 0.9):
-            return True
-            
-        # 如果规则分析明确判定为非超适应症，且置信度高，则采用规则分析结果
-        if (not rule_result.get("is_offlabel", True) and 
-            rule_result.get("confidence", 0) > 0.9):
-            return False
-            
-        # 否则，根据LLM的判断和综合得分来决定
-        llm_is_offlabel = llm_result.get("is_offlabel", True)
-        if llm_is_offlabel and weighted_scores["total_score"] < 0.6:
-            return True
-        elif not llm_is_offlabel and weighted_scores["total_score"] >= 0.6:
-            return False
-        else:
-            # 如果LLM判断和综合得分不一致，则以综合得分为准
-            return weighted_scores["total_score"] < 0.6
+        """确定最终的超适应症状态 - 严格基于规则判断
+        
+        超适应症判断应该严格基于药品说明书适应症的精确匹配，
+        而不是基于AI推理或机制相似度。
+        
+        判断标准：
+        - 只有精确匹配(confidence=1.0)才判定为非超适应症
+        - 同义词匹配、层级关系匹配等都视为超适应症
+        - AI分析结果不影响is_offlabel判断
+        """
+        # 严格基于规则的精确匹配
+        # 只有confidence=1.0（精确匹配）才判定为非超适应症
+        if not rule_result.get("is_offlabel", True):
+            confidence = rule_result.get("confidence", 0)
+            if confidence >= 1.0:
+                # 精确匹配，判定为标准用药
+                return False
+        
+        # 其他所有情况都判定为超适应症
+        # 包括：
+        # - 同义词匹配（confidence=0.9）
+        # - 层级关系匹配（confidence=0.8）
+        # - AI推理认为机制相似
+        return True
 
     def _synthesize_evidence(self, 
                            rule_result: Dict, 

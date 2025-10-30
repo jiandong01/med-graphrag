@@ -54,13 +54,13 @@ class InferenceEngine:
                 recognized_entities=recognized_entities
             )
             
-            # 3. 适应症分析
+            # 3. 适应症分析（返回Dict结构）
             logger.info("开始适应症分析...")
-            case.analysis_result = self.indication_analyzer.analyze_indication(case)
+            synthesis_result = self.indication_analyzer.analyze_indication(case)
             
-            # 4. 生成结果
+            # 4. 生成最终结果（传入synthesis_result）
             logger.info("生成分析结果...")
-            final_result = self.result_generator.generate(case)
+            final_result = self.result_generator.generate(case, synthesis_result)
             
             return final_result
             

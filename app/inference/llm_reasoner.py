@@ -9,10 +9,7 @@ from openai import OpenAI
 from elasticsearch import Elasticsearch
 
 from app.shared import get_es_client, load_env
-from .models import (
-    Case, AnalysisResult, EnhancedCase, Analysis, Recommendation, 
-    IndicationMatch, MechanismSimilarity, EvidenceSupport
-)
+from .models import Case, EnhancedCase
 from .rule_checker import RuleAnalyzer
 from .knowledge_retriever import KnowledgeEnhancer
 from .result_synthesizer import ResultSynthesizer
@@ -102,27 +99,35 @@ class IndicationAnalyzer:
             logger.error(f"原始响应: {response}")
             raise ValueError(f"无法解析JSON响应: {str(e)}")
 
-    def analyze_indication(self, case: Case) -> AnalysisResult:
+    def analyze_indication(self, case: Case) -> Dict[str, Any]:
         """分析用药适应症情况
         
         Args:
             case: 包含实体识别结果的病例数据
             
         Returns:
-            AnalysisResult: 分析结果
+            Dict: 分析结果（符合新的输出结构）
         """
         try:
             if not case.recognized_entities.drugs:
                 raise ValueError("未识别到药品信息")
             
-            if not case.recognized_entities.diseases:
-                raise ValueError("未识别到疾病信息")
-            
             # 知识增强
             enhanced_case = self.knowledge_enhancer.enhance_case(case)
             logger.debug(f"Enhanced case: {enhanced_case}")
             
-            # 规则分析
+            # 获取疾病名称：优先使用ES匹配的，如果没有则使用LLM抽取的原始疾病名
+            if case.recognized_entities.diseases and case.recognized_entities.diseases[0].matches:
+                # 有ES匹配结果
+                disease_name_for_analysis = enhanced_case.disease.name or case.recognized_entities.diseases[0].name
+            elif case.recognized_entities.diseases:
+                # 没有ES匹配，但LLM识别出了疾病
+                disease_name_for_analysis = case.recognized_entities.diseases[0].name
+                logger.info(f"疾病未在ES中匹配，使用LLM识别的原始名称: {disease_name_for_analysis}")
+            else:
+                raise ValueError("未识别到疾病信息")
+            
+            # 规则分析 - 使用确定的疾病名称
             rule_result = self.rule_analyzer.analyze(
                 {
                     "id": enhanced_case.drug.id,
@@ -132,8 +137,8 @@ class IndicationAnalyzer:
                     "details": enhanced_case.drug.details
                 },
                 {
-                    "id": enhanced_case.disease.id,
-                    "name": enhanced_case.disease.name
+                    "id": enhanced_case.disease.id if enhanced_case.disease.id else None,
+                    "name": disease_name_for_analysis  # 使用确定的疾病名称
                 }
             )
             logger.debug(f"Rule analysis result: {rule_result}")
@@ -148,14 +153,14 @@ class IndicationAnalyzer:
             expert_consensus_status = "（数据不可用）" if not expert_consensus else ""
             research_papers_status = "（数据不可用）" if not research_papers else ""
             
-            # 构建分析提示
+            # 构建分析提示 - 使用确定的疾病名称
             prompt = create_indication_analysis_prompt(
                 drug_name=enhanced_case.drug.name,
                 indications=json.dumps(enhanced_case.drug.indications, ensure_ascii=False),
                 pharmacology=enhanced_case.drug.pharmacology or "无相关信息",
                 contraindications=json.dumps(enhanced_case.drug.contraindications, ensure_ascii=False),
                 precautions=json.dumps(enhanced_case.drug.precautions, ensure_ascii=False),
-                diagnosis=enhanced_case.disease.name,
+                diagnosis=disease_name_for_analysis,  # 使用确定的疾病名称
                 description=enhanced_case.context.description if enhanced_case.context else "",
                 rule_analysis=json.dumps(rule_result, ensure_ascii=False),
                 clinical_guidelines_status=clinical_guidelines_status,
@@ -190,7 +195,7 @@ class IndicationAnalyzer:
                 llm_result = json.loads(cleaned_response)
                 logger.debug(f"Parsed LLM result: {llm_result}")
                 
-                # 综合分析结果
+                # 综合分析结果（result_synthesizer现在返回Dict）
                 final_result = self.result_synthesizer.synthesize(
                     rule_result,
                     llm_result,
@@ -202,47 +207,18 @@ class IndicationAnalyzer:
                 )
                 logger.debug(f"Final synthesized result: {final_result}")
                 
-                # 创建分析结果对象
-                analysis = Analysis(
-                    indication_match=IndicationMatch(
-                        score=final_result["analysis"]["indication_match"]["score"],
-                        matching_indication=final_result["analysis"]["indication_match"]["matching_indication"],
-                        reasoning=final_result["analysis"]["indication_match"]["reasoning"]
-                    ),
-                    mechanism_similarity=MechanismSimilarity(
-                        score=final_result["analysis"]["mechanism_similarity"]["score"],
-                        reasoning=final_result["analysis"]["mechanism_similarity"]["reasoning"]
-                    ),
-                    evidence_support=EvidenceSupport(
-                        level=final_result["analysis"]["evidence_support"]["level"],
-                        description=final_result["analysis"]["evidence_support"]["description"]
-                    )
-                )
+                # 添加数据可用性信息到metadata
+                if "metadata" in final_result:
+                    final_result["metadata"]["data_availability"] = {
+                        "clinical_guidelines": bool(clinical_guidelines),
+                        "expert_consensus": bool(expert_consensus),
+                        "research_papers": bool(research_papers)
+                    }
                 
-                recommendation = Recommendation(
-                    decision=final_result["recommendation"]["decision"],
-                    explanation=final_result["recommendation"]["explanation"],
-                    risk_assessment=final_result["recommendation"]["risk_assessment"]
-                )
-
-                result = AnalysisResult(
-                    is_offlabel=final_result["is_offlabel"],
-                    confidence=final_result["confidence"],
-                    analysis=analysis,
-                    recommendation=recommendation,
-                    evidence_synthesis=final_result.get("evidence_synthesis", {}),
-                    metadata=final_result.get("metadata", {
-                        "analysis_time": datetime.now().isoformat(),
-                        "data_availability": {
-                            "clinical_guidelines": bool(clinical_guidelines),
-                            "expert_consensus": bool(expert_consensus),
-                            "research_papers": bool(research_papers)
-                        },
-                        "data_limitations": final_result.get("data_limitations", {})
-                    })
-                )
-                logger.debug(f"Final AnalysisResult: {result}")
-                return result
+                # 直接返回Dict结果，在result_generator中转换为最终输出
+                # 这样可以保持更灵活的数据流
+                logger.debug(f"Returning synthesized result as Dict")
+                return final_result
                 
             except json.JSONDecodeError as e:
                 logger.error(f"解析模型响应时发生错误: {str(e)}")
