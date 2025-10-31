@@ -249,19 +249,28 @@ Med-GraphRAG项目的测试套件，包含两个核心端到端测试。
 
 ```bash
 # 运行所有测试
-uv run pytest tests/ -v -s
+uv run python -m pytest tests/ -v -s
 
 # 单独运行Pipeline测试
-uv run pytest tests/test_pipeline_e2e.py -v -s
+uv run python -m pytest tests/test_pipeline_e2e.py -v -s
 
 # 单独运行Inference测试
-uv run pytest tests/test_inference_e2e.py -v -s
+uv run python -m pytest tests/test_inference_e2e.py -v -s
 
 # 运行特定测试类
-uv run pytest tests/test_pipeline_e2e.py::TestDrugETL -v -s
+uv run python -m pytest tests/test_pipeline_e2e.py::TestDrugETL -v -s
 
 # 运行特定测试用例
-uv run pytest tests/test_inference_e2e.py::TestInferenceWorkflow::test_case1_standard_use -v -s
+uv run python -m pytest tests/test_inference_e2e.py::TestInferenceWorkflow::test_case1_standard_use -v -s
+```
+
+### 或者使用 make 命令
+
+```bash
+# 在项目根目录添加到 Makefile
+make test           # 运行所有测试
+make test-pipeline  # 运行Pipeline测试
+make test-inference # 运行Inference测试
 ```
 
 ### 使用传统方式运行
