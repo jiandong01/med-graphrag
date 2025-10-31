@@ -196,13 +196,19 @@ class IndicationAnalyzer:
                 logger.debug(f"Parsed LLM result: {llm_result}")
                 
                 # 综合分析结果（result_synthesizer现在返回Dict）
+                # 传递完整的药品信息到knowledge_context
                 final_result = self.result_synthesizer.synthesize(
                     rule_result,
                     llm_result,
                     {
                         "clinical_guidelines": clinical_guidelines or [],
                         "expert_consensus": expert_consensus or [],
-                        "research_papers": research_papers or []
+                        "research_papers": research_papers or [],
+                        "drug_info": {
+                            "indications_list": enhanced_case.drug.indications if isinstance(enhanced_case.drug.indications, list) else [],
+                            "indications": enhanced_case.drug.indications if isinstance(enhanced_case.drug.indications, list) else [],
+                            "contraindications": enhanced_case.drug.contraindications or []
+                        }
                     }
                 )
                 logger.debug(f"Final synthesized result: {final_result}")

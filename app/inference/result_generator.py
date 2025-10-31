@@ -25,13 +25,19 @@ class ResultGenerator:
         try:
             # 如果提供了synthesis_result，直接使用它组装输出
             if synthesis_result:
+                # 提取药品详细信息
+                drug_details = synthesis_result.get("drug_details", {})
+                
                 return {
                     "case_id": case.id,
                     "analysis_time": synthesis_result["metadata"]["analysis_time"],
                     "drug_info": {
                         "id": case.recognized_entities.drugs[0].matches[0].id if (case.recognized_entities.drugs and case.recognized_entities.drugs[0].matches) else None,
                         "name": case.recognized_entities.drugs[0].name if case.recognized_entities.drugs else None,
-                        "standard_name": case.recognized_entities.drugs[0].matches[0].standard_name if (case.recognized_entities.drugs and case.recognized_entities.drugs[0].matches) else None
+                        "standard_name": case.recognized_entities.drugs[0].matches[0].standard_name if (case.recognized_entities.drugs and case.recognized_entities.drugs[0].matches) else None,
+                        "indications_list": drug_details.get("indications_list", []),
+                        "indications": drug_details.get("indications", []),
+                        "contraindications": drug_details.get("contraindications", [])
                     },
                     "disease_info": {
                         "id": case.recognized_entities.diseases[0].matches[0].id if (case.recognized_entities.diseases and case.recognized_entities.diseases[0].matches) else None,

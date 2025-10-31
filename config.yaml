@@ -1,16 +1,24 @@
 # config.yaml
-huggingface:
-  model: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
-  max_tokens: 2000
-  temperature: 0.1
+# med-graphrag 系统配置
 
-paths:
-  output_dir: "outputs"
-  processed_dir: "outputs/processed"
-  failed_dir: "outputs/failed"
-  logs_dir: "outputs/logs"
-
-extraction:
-  batch_size: 10
-  retry_attempts: 3
-  timeout: 30
+# 推理引擎配置
+inference:
+  # 性能优化
+  skip_entity_recognition: true  # true=快速模式（跳过实体识别LLM调用）✅
+  
+  # 证据检索开关（目前索引为空，建议关闭）
+  enable_clinical_guidelines: false
+  enable_expert_consensus: false
+  enable_research_papers: false
+  
+  # LLM配置
+  llm:
+    model: "deepseek-chat"
+    temperature: 0.1
+    max_tokens: 2000
+  
+  # 评估配置
+  evaluation:
+    sample_size_yes: 50  # 抽取"是"的样本数
+    sample_size_no: 50   # 抽取"否"的样本数
+    random_seed: 42      # 固定随机种子

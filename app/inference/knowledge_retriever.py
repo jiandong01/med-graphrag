@@ -3,7 +3,7 @@
 import logging
 from typing import Dict, List, Any
 from elasticsearch import Elasticsearch, NotFoundError
-from app.shared import get_es_client
+from app.shared import get_es_client, Config
 from .models import Case, EnhancedCase
 
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +17,12 @@ class KnowledgeEnhancer:
         self.clinical_guidelines_index = 'clinical_guidelines' # TODO
         self.expert_consensus_index = 'expert_consensus' # TODO
         self.research_papers_index = 'research_papers' # TODO
+        
+        # 从config读取证据检索配置
+        inference_config = Config.get_inference_config()
+        self.enable_clinical_guidelines = inference_config.get('enable_clinical_guidelines', False)
+        self.enable_expert_consensus = inference_config.get('enable_expert_consensus', False)
+        self.enable_research_papers = inference_config.get('enable_research_papers', False)
 
     def enhance_case(self, case: Case) -> EnhancedCase:
         """增强病例信息"""
@@ -102,24 +108,33 @@ class KnowledgeEnhancer:
             return {}
 
     def _gather_evidence(self, enhanced_case: EnhancedCase):
-        """收集相关证据"""
+        """收集相关证据（根据环境变量控制）"""
         drug_id = enhanced_case.drug.id
         disease_id = enhanced_case.disease.id
         
-        # 获取临床指南
-        enhanced_case.evidence.clinical_guidelines = self._get_clinical_guidelines(
-            drug_id, disease_id
-        )
+        # 获取临床指南（可通过环境变量禁用）
+        if self.enable_clinical_guidelines:
+            enhanced_case.evidence.clinical_guidelines = self._get_clinical_guidelines(
+                drug_id, disease_id
+            )
+        else:
+            enhanced_case.evidence.clinical_guidelines = []
         
-        # 获取专家共识
-        enhanced_case.evidence.expert_consensus = self._get_expert_consensus(
-            drug_id, disease_id
-        )
+        # 获取专家共识（可通过环境变量禁用）
+        if self.enable_expert_consensus:
+            enhanced_case.evidence.expert_consensus = self._get_expert_consensus(
+                drug_id, disease_id
+            )
+        else:
+            enhanced_case.evidence.expert_consensus = []
         
-        # 获取研究文献
-        enhanced_case.evidence.research_papers = self._get_research_papers(
-            drug_id, disease_id
-        )
+        # 获取研究文献（可通过环境变量禁用）
+        if self.enable_research_papers:
+            enhanced_case.evidence.research_papers = self._get_research_papers(
+                drug_id, disease_id
+            )
+        else:
+            enhanced_case.evidence.research_papers = []
 
     def _get_clinical_guidelines(self, drug_id: str, disease_id: str) -> List[Dict]:
         """获取相关的临床指南"""

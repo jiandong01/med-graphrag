@@ -56,3 +56,31 @@ class Config:
         for dir_name in ['output_dir', 'processed_dir', 'failed_dir', 'logs_dir']:
             if dir_name in config.get('paths', {}):
                 Path(config['paths'][dir_name]).mkdir(parents=True, exist_ok=True)
+    
+    @staticmethod
+    def get_inference_config(config_path: str = "config.yaml") -> dict:
+        """获取推理引擎配置
+        
+        Args:
+            config_path: 配置文件路径
+            
+        Returns:
+            dict: inference配置
+        """
+        config = Config.load_yaml(config_path)
+        return config.get('inference', {
+            'skip_entity_recognition': False,
+            'enable_clinical_guidelines': False,
+            'enable_expert_consensus': False,
+            'enable_research_papers': False,
+            'llm': {
+                'model': 'deepseek-chat',
+                'temperature': 0.1,
+                'max_tokens': 2000
+            },
+            'evaluation': {
+                'sample_size_yes': 50,
+                'sample_size_no': 50,
+                'random_seed': 42
+            }
+        })

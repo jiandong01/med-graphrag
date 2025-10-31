@@ -89,9 +89,11 @@ class EntityRecognizer:
         return think_content, self._clean_json_string(json_str)
     
     def _search_drug(self, name: str, unique: bool = False) -> List[Dict]:
-        """在ES中搜索药品 - 优先精确匹配
+        """在ES中搜索药品 - 严格匹配策略
         
-        使用分层策略：先精确匹配，再模糊匹配，并验证结果
+        使用严格的匹配策略，避免驴唇不对马嘴的错误匹配：
+        1. 优先精确匹配（term/match_phrase）
+        2. 如果没有精确匹配，使用严格的模糊匹配并验证名称相似度
         
         Args:
             name: 药品名称
@@ -101,14 +103,15 @@ class EntityRecognizer:
             List[Dict]: 匹配的药品信息列表
         """
         try:
-            # 先尝试精确term匹配
+            # 第一步：精确匹配（term + match_phrase）
             exact_query = {
                 "query": {
                     "bool": {
                         "should": [
-                            {"term": {"name.keyword": name}},
-                            {"match_phrase": {"name": name}}
-                        ]
+                            {"term": {"name.keyword": name}},  # 完全相等
+                            {"match_phrase": {"name": name}}   # 短语匹配
+                        ],
+                        "minimum_should_match": 1
                     }
                 },
                 "size": 1 if unique else 3
@@ -116,43 +119,146 @@ class EntityRecognizer:
             result = self.es.search(index=self.drugs_index, body=exact_query)
             hits = result['hits']['hits']
             
-            # 如果有高分精确匹配（>10分），直接返回
-            if hits and hits[0].get('_score', 0) > 10.0:
-                return [
-                    {
-                        'id': hit['_source'].get('id', ''),
-                        'name': hit['_source'].get('name', ''),
-                        '_score': hit.get('_score', 0)
-                    }
-                    for hit in hits[:1 if unique else 3]
-                ]
+            # 如果有精确匹配结果，也需要验证相似度
+            if hits:
+                validated_exact_results = []
+                for hit in hits:
+                    matched_name = hit['_source'].get('name', '')
+                    score = hit.get('_score', 0)
+                    
+                    # 即使是精确匹配的结果，也要验证相似度
+                    # 避免 match_phrase 匹配到不相关的结果
+                    is_valid = (
+                        name == matched_name or  # 完全相同
+                        name in matched_name or  # 查询名是匹配名的子串
+                        matched_name in name or  # 匹配名是查询名的子串
+                        self._check_name_similarity(name, matched_name)
+                    )
+                    
+                    if is_valid:
+                        validated_exact_results.append({
+                            'id': hit['_source'].get('id', ''),
+                            'name': matched_name,
+                            '_score': score
+                        })
+                    else:
+                        logger.debug(f"药品'{name}'精确匹配'{matched_name}'但相似度不足，跳过")
+                
+                if validated_exact_results:
+                    logger.info(f"药品'{name}'精确匹配: {[r['name'] for r in validated_exact_results]}")
+                    return validated_exact_results
             
-            # 否则使用模糊匹配
+            # 第二步：严格的模糊匹配（只匹配name字段，不匹配details）
+            # 使用 match 并设置最小相似度
             fuzzy_query = {
                 "query": {
-                    "bool": {
-                        "should": [
-                            {"match": {"name": name}},
-                            {"match": {"details.content": name}}
-                        ]
+                    "match": {
+                        "name": {
+                            "query": name,
+                            "minimum_should_match": "75%"  # 至少75%的词匹配
+                        }
                     }
                 },
-                "size": 1 if unique else 5
+                "size": 10  # 多取一些候选，后面会过滤
             }
             result = self.es.search(index=self.drugs_index, body=fuzzy_query)
             hits = result['hits']['hits']
             
-            return [
-                {
-                    'id': hit['_source'].get('id', ''),
-                    'name': hit['_source'].get('name', ''),
-                    '_score': hit.get('_score', 0)
-                }
-                for hit in hits
-            ]
+            # 第三步：验证匹配结果的名称相似度
+            validated_results = []
+            for hit in hits:
+                matched_name = hit['_source'].get('name', '')
+                score = hit.get('_score', 0)
+                
+                # 验证逻辑：
+                # 1. 查询名称必须是匹配名称的子串，或反之
+                # 2. 或者匹配名称包含查询名称的所有主要字符
+                is_valid = (
+                    name in matched_name or 
+                    matched_name in name or
+                    self._check_name_similarity(name, matched_name)
+                )
+                
+                if is_valid:
+                    validated_results.append({
+                        'id': hit['_source'].get('id', ''),
+                        'name': matched_name,
+                        '_score': score
+                    })
+                    if unique:
+                        break
+                else:
+                    logger.debug(f"药品'{name}'与'{matched_name}'不相似，跳过")
+            
+            if validated_results:
+                logger.info(f"药品'{name}'模糊匹配: {[r['name'] for r in validated_results[:3]]}")
+            else:
+                logger.warning(f"药品'{name}'未找到匹配结果")
+            
+            return validated_results[:5] if not unique else validated_results[:1]
+            
         except Exception as e:
-            logger.error(f"搜索药品时发生错误: {str(e)}")
+            logger.error(f"搜索药品'{name}'时发生错误: {str(e)}")
             raise
+    
+    def _check_name_similarity(self, name1: str, name2: str) -> bool:
+        """检查两个名称是否相似（严格版本）
+        
+        使用多重验证策略，确保只有真正相似的药品名称才通过：
+        1. 子串包含检查（清理后）
+        2. 字符顺序匹配检查
+        3. 严格的字符重叠度检查
+        
+        Args:
+            name1: 名称1（查询名）
+            name2: 名称2（匹配名）
+            
+        Returns:
+            bool: 是否相似
+        """
+        # 移除常见的药品剂型后缀
+        suffixes = ['片', '胶囊', '颗粒', '注射液', '口服液', '软膏', '乳膏', '栓', '丸', '散', '缓释片', '肠溶片']
+        clean1 = name1
+        clean2 = name2
+        for suffix in suffixes:
+            clean1 = clean1.replace(suffix, '')
+            clean2 = clean2.replace(suffix, '')
+        
+        # 策略1：如果清理后的名称相互包含，认为相似
+        if clean1 in clean2 or clean2 in clean1:
+            return True
+        
+        # 策略2：检查字符顺序是否匹配
+        # 短名称的所有字符必须在长名称中按顺序出现
+        shorter, longer = (clean1, clean2) if len(clean1) <= len(clean2) else (clean2, clean1)
+        
+        # 如果短名称的字符能在长名称中按顺序找到，才可能相似
+        pos = 0
+        for char in shorter:
+            found = longer.find(char, pos)
+            if found == -1:
+                # 有字符找不到，不相似
+                return False
+            pos = found + 1
+        
+        # 策略3：严格的字符重叠度检查
+        # 需要至少85%的字符重叠（比之前的70%更严格）
+        set1 = set(clean1)
+        set2 = set(clean2)
+        overlap = len(set1 & set2)
+        min_len = min(len(set1), len(set2))
+        
+        if min_len > 0 and overlap / min_len >= 0.85:
+            # 额外检查：长名称不能比短名称长太多
+            # 避免 "艾塞那肽" 匹配 "聚乙二醇洛塞那肽" 这种情况
+            max_len = max(len(clean1), len(clean2))
+            length_ratio = min_len / max_len
+            
+            # 长度比例至少要达到60%
+            if length_ratio >= 0.6:
+                return True
+        
+        return False
     
     def _search_disease(self, name: str, unique: bool = False) -> List[Dict]:
         """在ES中搜索疾病 - 精确term匹配

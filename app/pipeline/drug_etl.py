@@ -401,7 +401,7 @@ def main():
         
         # 运行管道
         pipeline.run(
-            output_dir=args.output_dir or config['paths'].get('output_dir'),
+            output_dir=args.output_dir or "outputs",  # 默认输出目录
             clear_indices=args.clear
         )
         

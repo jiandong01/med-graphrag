@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any, List
 from datetime import datetime
 
-from app.shared import setup_logging
+from app.shared import setup_logging, Config
 from .entity_matcher import EntityRecognizer
 from .llm_reasoner import IndicationAnalyzer
 from .result_generator import ResultGenerator
@@ -16,12 +16,27 @@ logger = setup_logging("inference_engine")
 class InferenceEngine:
     """推理引擎 - 协调所有分析步骤"""
     
-    def __init__(self):
-        """初始化推理引擎"""
+    def __init__(self, skip_entity_recognition: bool = None):
+        """初始化推理引擎
+        
+        Args:
+            skip_entity_recognition: 是否跳过LLM实体识别
+                                   None=从config读取，True/False=直接指定
+        """
+        # 从config读取配置
+        inference_config = Config.get_inference_config()
+        
+        # skip_entity_recognition优先使用参数，其次使用config
+        if skip_entity_recognition is None:
+            self.skip_entity_recognition = inference_config.get('skip_entity_recognition', False)
+        else:
+            self.skip_entity_recognition = skip_entity_recognition
+        
+        # 统一使用EntityRecognizer（快速模式和完整模式都需要它的严格匹配逻辑）
         self.entity_recognizer = EntityRecognizer()
         self.indication_analyzer = IndicationAnalyzer()
         self.result_generator = ResultGenerator()
-        logger.info("推理引擎初始化完成")
+        logger.info(f"推理引擎初始化完成 (快速模式: {self.skip_entity_recognition})")
     
     def analyze(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """单例分析
@@ -36,14 +51,14 @@ class InferenceEngine:
         
         Returns:
             Dict: 分析结果
-                {
-                    "offlabel_status": "reasonable_offlabel",
-                    "confidence": 0.85,
-                    "reasoning": [...],
-                    "recommendation": {...}
-                }
         """
         try:
+            # 检查是否可以跳过实体识别（快速模式）
+            if self.skip_entity_recognition and 'drug_name' in input_data and 'disease_name' in input_data:
+                logger.info("使用快速模式（跳过实体识别）...")
+                return self.analyze_fast(input_data)
+            
+            # 正常流程：包含实体识别
             # 1. 实体识别
             logger.info("开始实体识别...")
             recognized_entities = self.entity_recognizer.recognize(input_data)
@@ -67,6 +82,102 @@ class InferenceEngine:
         except Exception as e:
             logger.error(f"处理病例时发生错误: {str(e)}")
             raise
+    
+    def analyze_fast(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """快速分析（跳过LLM实体识别，直接使用严格的ES匹配）
+        
+        Args:
+            input_data: 包含drug_name和disease_name的输入数据
+            
+        Returns:
+            Dict: 分析结果
+        """
+        from .models import (RecognizedEntities, RecognizedDrug, RecognizedDisease,
+                           DrugMatch, DiseaseMatch, Context)
+        
+        drug_name = input_data['drug_name']
+        disease_name = input_data['disease_name']
+        
+        # 直接使用统一的EntityRecognizer实例进行严格匹配
+        drug_matches = self.entity_recognizer._search_drug(drug_name, unique=True)
+        disease_matches = self.entity_recognizer._search_disease(disease_name, unique=True)
+        
+        # 构建RecognizedEntities
+        drugs = []
+        if drug_matches:
+            drugs.append(RecognizedDrug(
+                name=drug_name,
+                matches=[DrugMatch(
+                    id=match['id'],
+                    standard_name=match['name'],
+                    score=match['_score']
+                ) for match in drug_matches]
+            ))
+        else:
+            # 药品未匹配：返回带警告的结果
+            logger.warning(f"药品'{drug_name}'在数据库中未找到匹配")
+            return {
+                "case_id": input_data.get('id', str(datetime.now().timestamp())),
+                "analysis_time": datetime.now().isoformat(),
+                "drug_info": {
+                    "id": None,
+                    "name": drug_name,
+                    "standard_name": None,
+                    "match_status": "not_found"
+                },
+                "disease_info": {
+                    "id": None,
+                    "name": disease_name,
+                    "standard_name": None
+                },
+                "is_offlabel": None,
+                "analysis_details": {
+                    "error": "药品信息缺失",
+                    "message": f"药品'{drug_name}'在数据库中未找到匹配，可能原因：1) 药品名称不标准 2) 数据库中无此药品 3) 药品类别名而非具体药品",
+                    "suggestion": "请检查药品名称是否正确，或使用具体的药品名称而非类别名"
+                },
+                "metadata": {
+                    "analysis_time": datetime.now().isoformat(),
+                    "mode": "fast",
+                    "data_availability": {
+                        "drug_matched": False,
+                        "disease_matched": bool(disease_matches)
+                    }
+                }
+            }
+        
+        diseases = []
+        diseases.append(RecognizedDisease(
+            name=disease_name,
+            matches=[DiseaseMatch(
+                id=match['id'],
+                standard_name=match['name'],
+                score=match['_score']
+            ) for match in disease_matches] if disease_matches else []
+        ))
+        
+        recognized_entities = RecognizedEntities(
+            drugs=drugs,
+            diseases=diseases,
+            context=Context(
+                description=input_data.get('description', f"患者诊断为{disease_name}，拟使用{drug_name}治疗"),
+                raw_data=input_data
+            )
+        )
+        
+        # 创建病例对象
+        case = Case(
+            id=input_data.get('id', str(datetime.now().timestamp())),
+            recognized_entities=recognized_entities
+        )
+        
+        # 适应症分析
+        synthesis_result = self.indication_analyzer.analyze_indication(case)
+        
+        # 生成结果
+        final_result = self.result_generator.generate(case, synthesis_result)
+        
+        return final_result
     
     def analyze_batch(self, input_data_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """批量分析

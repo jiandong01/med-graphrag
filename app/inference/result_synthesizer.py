@@ -48,9 +48,17 @@ class ResultSynthesizer:
             final_is_offlabel, weighted_scores, evidence_synthesis
         )
         
+        # 获取药品的详细信息（用于输出）
+        drug_details = knowledge_context.get('drug_info', {})
+        
         # 按照新的数据结构组织输出
         return {
             "is_offlabel": final_is_offlabel,  # 严格规则判断
+            "drug_details": {
+                "indications_list": drug_details.get('indications_list', []),
+                "indications": drug_details.get('indications', []),
+                "contraindications": drug_details.get('contraindications', [])
+            },
             "analysis_details": {
                 # 规则判断部分
                 "indication_match": {
