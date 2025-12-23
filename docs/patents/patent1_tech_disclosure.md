@@ -396,31 +396,31 @@ $$
 \hline
 \textbf{Algorithm: } \text{符号层精确匹配分析} \\
 \textbf{Input: } disease\_name \text{（疾病名称）}, drug\_indications\_list \text{（药品适应症列表）} \\
-\textbf{Output: } \{is\_offlabel, confidence, reasoning\} \\
+\textbf{Output: } result \text{（包含is\_offlabel、confidence、reasoning）} \\
 \hline
 \\
-\text{// 级别1：精确匹配（置信度 } confidence = 1.0 \text{）} \\
+\text{// 级别1：精确匹配，置信度为1.0} \\
 \textbf{if } disease\_name \in drug\_indications\_list \textbf{ then} \\
-\quad \textbf{return } \{is\_offlabel: False, confidence: 1.0, reasoning: \text{"精确匹配"}\} \\
+\quad \textbf{return } \{False, 1.0, \text{"精确匹配"}\} \\
 \textbf{end if} \\
 \\
-\text{// 级别2：同义词匹配（置信度 } confidence = 0.9 \text{）} \\
+\text{// 级别2：同义词匹配，置信度为0.9} \\
 synonyms \leftarrow get\_synonyms(disease\_name) \\
 \textbf{for each } syn \in synonyms \textbf{ do} \\
 \quad \textbf{if } syn \in drug\_indications\_list \textbf{ then} \\
-\quad \quad \textbf{return } \{is\_offlabel: False, confidence: 0.9, reasoning: \text{"同义词匹配"}\} \\
+\quad \quad \textbf{return } \{False, 0.9, \text{"同义词匹配"}\} \\
 \quad \textbf{end if} \\
 \textbf{end for} \\
 \\
-\text{// 级别3：层级关系匹配（置信度 } confidence = 0.8 \text{）} \\
+\text{// 级别3：层级关系匹配，置信度为0.8} \\
 \textbf{for each } indication \in drug\_indications\_list \textbf{ do} \\
 \quad \textbf{if } is\_subtype\_of(disease\_name, indication) \textbf{ then} \\
-\quad \quad \textbf{return } \{is\_offlabel: False, confidence: 0.8, reasoning: \text{"层级匹配"}\} \\
+\quad \quad \textbf{return } \{False, 0.8, \text{"层级匹配"}\} \\
 \quad \textbf{end if} \\
 \textbf{end for} \\
 \\
-\text{// 无匹配：判定为超适应症（置信度 } confidence = 0.0 \text{）} \\
-\textbf{return } \{is\_offlabel: True, confidence: 0.0, reasoning: \text{"无匹配"}\} \\
+\text{// 无匹配：判定为超适应症} \\
+\textbf{return } \{True, 0.0, \text{"无匹配"}\} \\
 \\
 \hline
 \textbf{时间复杂度: } O(n + m \cdot k) \text{，其中 } n = |synonyms|, m = |drug\_indications\_list|, k \text{ 为层级查询时间} \\
@@ -666,38 +666,37 @@ $$
 \begin{array}{l}
 \hline
 \textbf{Algorithm: } \text{自适应融合决策} \\
-\textbf{Input: } symbolic\_result \text{（符号层结果）}, neural\_result \text{（神经层结果）} \\
-\textbf{Output: } decision \text{（融合决策结果）} \\
+\textbf{Input: } symbolic\_result, neural\_result \\
+\textbf{Output: } decision \\
 \hline
 \\
-\text{// 步骤1：提取符号层结果} \\
-is\_offlabel \leftarrow symbolic\_result[\text{"is\_offlabel"}] \\
-confidence \leftarrow symbolic\_result[\text{"confidence"}] \\
-symbolic\_reasoning \leftarrow symbolic\_result[\text{"reasoning"}] \\
+\text{// 提取符号层结果} \\
+is\_offlabel \leftarrow symbolic\_result.is\_offlabel \\
+confidence \leftarrow symbolic\_result.confidence \\
+symbolic\_reasoning \leftarrow symbolic\_result.reasoning \\
 \\
-\text{// 步骤2：提取神经层结果} \\
-mechanism\_similarity \leftarrow neural\_result[\text{"mechanism\_similarity"}] \\
-evidence\_level \leftarrow neural\_result[\text{"evidence\_level"}] \\
-risk\_assessment \leftarrow neural\_result[\text{"risk\_assessment"}] \\
+\text{// 提取神经层结果} \\
+mechanism\_similarity \leftarrow neural\_result.mechanism\_similarity \\
+evidence\_level \leftarrow neural\_result.evidence\_level \\
+risk\_assessment \leftarrow neural\_result.risk\_assessment \\
 \\
-\text{// 步骤3：决策分支} \\
+\text{// 决策分支} \\
 \textbf{if } confidence \geq 1.0 \textbf{ then} \\
-\quad \text{// 符号层确定性结论（精确匹配），优先采纳} \\
-\quad \textbf{return } \{is\_offlabel, decision\_source: \text{"symbolic\_layer"}, confidence: 1.0, \\
-\quad \quad \quad \quad reasoning: symbolic\_reasoning, ai\_reference: \text{None}\} \\
+\quad \text{// 符号层确定性结论，优先采纳} \\
+\quad decision\_source \leftarrow \text{"symbolic\_layer"} \\
+\quad ai\_reference \leftarrow None \\
 \textbf{else} \\
 \quad \text{// 符号层不确定，激活神经层辅助分析} \\
-\quad recommendation \leftarrow generate\_recommendation(is\_offlabel, mechanism\_similarity, \\
-\quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad evidence\_level, risk\_assessment) \\
-\quad \textbf{return } \{is\_offlabel, decision\_source: \text{"hybrid"}, confidence, \\
-\quad \quad \quad \quad reasoning: symbolic\_reasoning, \\
-\quad \quad \quad \quad ai\_reference: \{mechanism\_similarity, evidence\_level, risk\_assessment\}, \\
-\quad \quad \quad \quad recommendation\} \\
+\quad decision\_source \leftarrow \text{"hybrid"} \\
+\quad ai\_reference \leftarrow \{mechanism\_similarity, evidence\_level, risk\_assessment\} \\
+\quad recommendation \leftarrow generate\_recommendation(...) \\
 \textbf{end if} \\
 \\
+\textbf{return } decision \\
+\\
 \hline
-\textbf{时间复杂度: } O(1) \text{（决策逻辑为常数时间）} \\
-\textbf{空间复杂度: } O(1) \text{（固定大小的结果结构）} \\
+\textbf{时间复杂度: } O(1) \\
+\textbf{空间复杂度: } O(1) \\
 \hline
 \end{array}
 $$
@@ -801,35 +800,36 @@ $$
 \hline
 \textbf{Algorithm: } \text{生成临床用药建议} \\
 \textbf{Input: } is\_offlabel, mechanism\_similarity, evidence\_level, risk\_assessment \\
-\textbf{Output: } recommendation \text{（用药建议）} \\
+\textbf{Output: } recommendation \\
 \hline
 \\
 \textbf{if } \neg is\_offlabel \textbf{ then} \\
 \quad \text{// 非超适应症：标准用药} \\
-\quad \textbf{return } \{category: \text{"standard\_use"}, \\
-\quad \quad \quad \quad advice: \text{"该用药符合批准适应症，属于标准用药。"}\} \\
+\quad category \leftarrow \text{"standard\_use"} \\
+\quad advice \leftarrow \text{"该用药符合批准适应症"} \\
+\quad \textbf{return } \{category, advice\} \\
 \textbf{end if} \\
 \\
 \text{// 超适应症情况：分级建议} \\
 \textbf{if } mechanism\_similarity \geq 0.8 \land evidence\_level \in \{A, B\} \textbf{ then} \\
 \quad \text{// 强证据支持的合理超适应症} \\
-\quad \textbf{return } \{category: \text{"reasonable\_offlabel"}, \\
-\quad \quad \quad \quad advice: \text{"虽属超适应症用药，但有明确的药理机制支持和临床证据，} \\
-\quad \quad \quad \quad \quad \quad \text{可在严密监测下谨慎使用。"} + risk\_assessment[\text{"monitoring"}]\} \\
+\quad category \leftarrow \text{"reasonable\_offlabel"} \\
+\quad advice \leftarrow \text{"有明确药理机制和临床证据支持"} \\
 \textbf{else if } mechanism\_similarity \geq 0.5 \land evidence\_level = C \textbf{ then} \\
-\quad \text{// 中等证据支持的谨慎超适应症} \\
-\quad \textbf{return } \{category: \text{"cautious\_offlabel"}, \\
-\quad \quad \quad \quad advice: \text{"超适应症用药，有一定理论依据但临床证据有限，} \\
-\quad \quad \quad \quad \quad \quad \text{需充分评估获益风险比，建议专家会诊。"}\} \\
+\quad \text{// 中等证据支持} \\
+\quad category \leftarrow \text{"cautious\_offlabel"} \\
+\quad advice \leftarrow \text{"有一定理论依据，建议专家会诊"} \\
 \textbf{else} \\
-\quad \text{// 证据不足的不推荐超适应症} \\
-\quad \textbf{return } \{category: \text{"not\_recommended"}, \\
-\quad \quad \quad \quad advice: \text{"超适应症用药，缺乏充分的机制支持和临床证据，不推荐使用。"}\} \\
+\quad \text{// 证据不足} \\
+\quad category \leftarrow \text{"not\_recommended"} \\
+\quad advice \leftarrow \text{"缺乏充分证据，不推荐使用"} \\
 \textbf{end if} \\
 \\
+\textbf{return } \{category, advice\} \\
+\\
 \hline
-\textbf{时间复杂度: } O(1) \text{（固定的条件判断）} \\
-\textbf{空间复杂度: } O(1) \text{（固定大小的建议结构）} \\
+\textbf{时间复杂度: } O(1) \\
+\textbf{空间复杂度: } O(1) \\
 \hline
 \end{array}
 $$
