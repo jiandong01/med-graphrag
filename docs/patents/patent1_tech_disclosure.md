@@ -359,6 +359,78 @@ GET /drugs/_search
 
 **判断逻辑：**
 
+**算法流程图：**
+
+```mermaid
+graph TB
+    A["输入<br/>disease_name<br/>drug_indications_list"] --> B{级别1<br/>精确匹配?<br/>disease_name ∈ list?}
+
+    B -->|是| C1["返回<br/>is_offlabel = False<br/>confidence = 1.0<br/>reasoning = 精确匹配"]
+
+    B -->|否| D["获取同义词<br/>synonyms = get_synonyms(disease_name)"]
+    D --> E{级别2<br/>同义词匹配?<br/>∃syn ∈ synonyms<br/>syn ∈ list?}
+
+    E -->|是| C2["返回<br/>is_offlabel = False<br/>confidence = 0.9<br/>reasoning = 同义词匹配"]
+
+    E -->|否| F["遍历适应症列表<br/>for indication in list"]
+    F --> G{级别3<br/>层级关系?<br/>is_subtype_of?}
+
+    G -->|是| C3["返回<br/>is_offlabel = False<br/>confidence = 0.8<br/>reasoning = 亚型关系"]
+
+    G -->|否| H["返回<br/>is_offlabel = True<br/>confidence = 0.0<br/>reasoning = 无匹配"]
+
+    style A fill:#e1f5ff,stroke:#333,stroke-width:2px
+    style B fill:#fff9c4,stroke:#333,stroke-width:2px
+    style E fill:#fff9c4,stroke:#333,stroke-width:2px
+    style G fill:#fff9c4,stroke:#333,stroke-width:2px
+    style C1 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style C2 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style C3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style H fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
+```
+
+**算法伪代码：**
+
+$$
+\begin{array}{l}
+\hline
+\textbf{Algorithm: } \text{符号层精确匹配分析} \\
+\textbf{Input: } disease\_name \text{（疾病名称）}, drug\_indications\_list \text{（药品适应症列表）} \\
+\textbf{Output: } \{is\_offlabel, confidence, reasoning\} \\
+\hline
+\\
+\text{// 级别1：精确匹配（置信度 } confidence = 1.0 \text{）} \\
+\textbf{if } disease\_name \in drug\_indications\_list \textbf{ then} \\
+\quad \textbf{return } \{is\_offlabel: False, confidence: 1.0, reasoning: \text{"精确匹配"}\} \\
+\textbf{end if} \\
+\\
+\text{// 级别2：同义词匹配（置信度 } confidence = 0.9 \text{）} \\
+synonyms \leftarrow get\_synonyms(disease\_name) \\
+\textbf{for each } syn \in synonyms \textbf{ do} \\
+\quad \textbf{if } syn \in drug\_indications\_list \textbf{ then} \\
+\quad \quad \textbf{return } \{is\_offlabel: False, confidence: 0.9, reasoning: \text{"同义词匹配"}\} \\
+\quad \textbf{end if} \\
+\textbf{end for} \\
+\\
+\text{// 级别3：层级关系匹配（置信度 } confidence = 0.8 \text{）} \\
+\textbf{for each } indication \in drug\_indications\_list \textbf{ do} \\
+\quad \textbf{if } is\_subtype\_of(disease\_name, indication) \textbf{ then} \\
+\quad \quad \textbf{return } \{is\_offlabel: False, confidence: 0.8, reasoning: \text{"层级匹配"}\} \\
+\quad \textbf{end if} \\
+\textbf{end for} \\
+\\
+\text{// 无匹配：判定为超适应症（置信度 } confidence = 0.0 \text{）} \\
+\textbf{return } \{is\_offlabel: True, confidence: 0.0, reasoning: \text{"无匹配"}\} \\
+\\
+\hline
+\textbf{时间复杂度: } O(n + m \cdot k) \text{，其中 } n = |synonyms|, m = |drug\_indications\_list|, k \text{ 为层级查询时间} \\
+\textbf{空间复杂度: } O(n) \\
+\hline
+\end{array}
+$$
+
+**Python实现：**
+
 ```python
 def symbolic_layer_analysis(disease_name, drug_indications_list):
     """
@@ -564,7 +636,73 @@ LLM输出：
 
 本模块是本发明的核心创新之一，实现符号层和神经层的智能融合。
 
-**融合算法：**
+**融合算法流程图：**
+
+```mermaid
+graph TB
+    A["输入<br/>symbolic_result<br/>neural_result"] --> B{confidence判断}
+
+    B -->|confidence ≥ 1.0| C["采用符号层<br/>确定性结论"]
+    C --> C1["decision_source = symbolic_layer<br/>ai_reference = None"]
+
+    B -->|confidence < 1.0| D["激活神经层<br/>混合分析"]
+    D --> D1["decision_source = hybrid<br/>提取mechanism_similarity<br/>evidence_level<br/>risk_assessment"]
+
+    D1 --> E["调用generate_recommendation<br/>生成分级建议"]
+
+    C1 --> F["返回决策结果"]
+    E --> F
+
+    style A fill:#e1f5ff,stroke:#333,stroke-width:2px
+    style B fill:#fff9c4,stroke:#333,stroke-width:2px
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style D fill:#ffe0b2,stroke:#f57c00,stroke-width:2px
+    style F fill:#dfd,stroke:#333,stroke-width:2px
+```
+
+**算法伪代码：**
+
+$$
+\begin{array}{l}
+\hline
+\textbf{Algorithm: } \text{自适应融合决策} \\
+\textbf{Input: } symbolic\_result \text{（符号层结果）}, neural\_result \text{（神经层结果）} \\
+\textbf{Output: } decision \text{（融合决策结果）} \\
+\hline
+\\
+\text{// 步骤1：提取符号层结果} \\
+is\_offlabel \leftarrow symbolic\_result[\text{"is\_offlabel"}] \\
+confidence \leftarrow symbolic\_result[\text{"confidence"}] \\
+symbolic\_reasoning \leftarrow symbolic\_result[\text{"reasoning"}] \\
+\\
+\text{// 步骤2：提取神经层结果} \\
+mechanism\_similarity \leftarrow neural\_result[\text{"mechanism\_similarity"}] \\
+evidence\_level \leftarrow neural\_result[\text{"evidence\_level"}] \\
+risk\_assessment \leftarrow neural\_result[\text{"risk\_assessment"}] \\
+\\
+\text{// 步骤3：决策分支} \\
+\textbf{if } confidence \geq 1.0 \textbf{ then} \\
+\quad \text{// 符号层确定性结论（精确匹配），优先采纳} \\
+\quad \textbf{return } \{is\_offlabel, decision\_source: \text{"symbolic\_layer"}, confidence: 1.0, \\
+\quad \quad \quad \quad reasoning: symbolic\_reasoning, ai\_reference: \text{None}\} \\
+\textbf{else} \\
+\quad \text{// 符号层不确定，激活神经层辅助分析} \\
+\quad recommendation \leftarrow generate\_recommendation(is\_offlabel, mechanism\_similarity, \\
+\quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad evidence\_level, risk\_assessment) \\
+\quad \textbf{return } \{is\_offlabel, decision\_source: \text{"hybrid"}, confidence, \\
+\quad \quad \quad \quad reasoning: symbolic\_reasoning, \\
+\quad \quad \quad \quad ai\_reference: \{mechanism\_similarity, evidence\_level, risk\_assessment\}, \\
+\quad \quad \quad \quad recommendation\} \\
+\textbf{end if} \\
+\\
+\hline
+\textbf{时间复杂度: } O(1) \text{（决策逻辑为常数时间）} \\
+\textbf{空间复杂度: } O(1) \text{（固定大小的结果结构）} \\
+\hline
+\end{array}
+$$
+
+**Python实现：**
 
 ```python
 def adaptive_fusion_decision(symbolic_result, neural_result):
@@ -620,7 +758,85 @@ def adaptive_fusion_decision(symbolic_result, neural_result):
         )
 
     return decision
+```
 
+**用药建议生成算法流程图：**
+
+```mermaid
+graph TB
+    A["输入<br/>is_offlabel<br/>mechanism_similarity<br/>evidence_level<br/>risk_assessment"] --> B{is_offlabel?}
+
+    B -->|False| C["category = standard_use<br/>标准用药"]
+
+    B -->|True| D{"mechanism_similarity ≥ 0.8<br/>AND<br/>evidence_level = A/B?"}
+
+    D -->|是| E["category = reasonable_offlabel<br/>合理超适应症<br/>谨慎使用+监测"]
+
+    D -->|否| F{"mechanism_similarity ≥ 0.5<br/>AND<br/>evidence_level = C?"}
+
+    F -->|是| G["category = cautious_offlabel<br/>谨慎使用<br/>建议专家会诊"]
+
+    F -->|否| H["category = not_recommended<br/>不推荐使用"]
+
+    C --> I["返回建议"]
+    E --> I
+    G --> I
+    H --> I
+
+    style A fill:#e1f5ff,stroke:#333,stroke-width:2px
+    style B fill:#fff9c4,stroke:#333,stroke-width:2px
+    style D fill:#fff9c4,stroke:#333,stroke-width:2px
+    style F fill:#fff9c4,stroke:#333,stroke-width:2px
+    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style E fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style G fill:#ffecb3,stroke:#ffa000,stroke-width:2px
+    style H fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
+    style I fill:#dfd,stroke:#333,stroke-width:2px
+```
+
+**算法伪代码：**
+
+$$
+\begin{array}{l}
+\hline
+\textbf{Algorithm: } \text{生成临床用药建议} \\
+\textbf{Input: } is\_offlabel, mechanism\_similarity, evidence\_level, risk\_assessment \\
+\textbf{Output: } recommendation \text{（用药建议）} \\
+\hline
+\\
+\textbf{if } \neg is\_offlabel \textbf{ then} \\
+\quad \text{// 非超适应症：标准用药} \\
+\quad \textbf{return } \{category: \text{"standard\_use"}, \\
+\quad \quad \quad \quad advice: \text{"该用药符合批准适应症，属于标准用药。"}\} \\
+\textbf{end if} \\
+\\
+\text{// 超适应症情况：分级建议} \\
+\textbf{if } mechanism\_similarity \geq 0.8 \land evidence\_level \in \{A, B\} \textbf{ then} \\
+\quad \text{// 强证据支持的合理超适应症} \\
+\quad \textbf{return } \{category: \text{"reasonable\_offlabel"}, \\
+\quad \quad \quad \quad advice: \text{"虽属超适应症用药，但有明确的药理机制支持和临床证据，} \\
+\quad \quad \quad \quad \quad \quad \text{可在严密监测下谨慎使用。"} + risk\_assessment[\text{"monitoring"}]\} \\
+\textbf{else if } mechanism\_similarity \geq 0.5 \land evidence\_level = C \textbf{ then} \\
+\quad \text{// 中等证据支持的谨慎超适应症} \\
+\quad \textbf{return } \{category: \text{"cautious\_offlabel"}, \\
+\quad \quad \quad \quad advice: \text{"超适应症用药，有一定理论依据但临床证据有限，} \\
+\quad \quad \quad \quad \quad \quad \text{需充分评估获益风险比，建议专家会诊。"}\} \\
+\textbf{else} \\
+\quad \text{// 证据不足的不推荐超适应症} \\
+\quad \textbf{return } \{category: \text{"not\_recommended"}, \\
+\quad \quad \quad \quad advice: \text{"超适应症用药，缺乏充分的机制支持和临床证据，不推荐使用。"}\} \\
+\textbf{end if} \\
+\\
+\hline
+\textbf{时间复杂度: } O(1) \text{（固定的条件判断）} \\
+\textbf{空间复杂度: } O(1) \text{（固定大小的建议结构）} \\
+\hline
+\end{array}
+$$
+
+**Python实现：**
+
+```python
 def generate_recommendation(is_offlabel, mechanism_similarity,
                             evidence_level, risk_assessment):
     """

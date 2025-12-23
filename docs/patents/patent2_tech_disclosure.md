@@ -240,6 +240,57 @@ LLM理解结果：
 
 医疗文本中药品通常包含剂型（如"片"、"胶囊"、"注射液"），需要去除后才能与知识库对齐。
 
+**算法流程图：**
+
+```mermaid
+graph TB
+    A["输入<br/>drug_name"] --> B["遍历DRUG_SUFFIX_LIST"]
+
+    B --> C{是否匹配后缀?}
+
+    C -->|是| D["返回<br/>drug_name[:-len(suffix)]"]
+    C -->|否| E["继续下一个suffix"]
+
+    E --> F{还有suffix?}
+    F -->|是| C
+    F -->|否| G["返回原名称<br/>drug_name"]
+
+    style A fill:#e1f5ff,stroke:#333,stroke-width:2px
+    style C fill:#fff9c4,stroke:#333,stroke-width:2px
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+```
+
+**算法伪代码：**
+
+$$
+\begin{array}{l}
+\hline
+\textbf{Algorithm: } \text{去除药品剂型后缀} \\
+\textbf{Input: } drug\_name \text{（药品名称字符串）} \\
+\textbf{Output: } cleaned\_name \text{（去除后缀后的药品名称）} \\
+\textbf{Predefined: } DRUG\_SUFFIX\_LIST = [\text{'片', '胶囊', '颗粒', '注射液', ...}] \\
+\hline
+\\
+\textbf{for each } suffix \in DRUG\_SUFFIX\_LIST \textbf{ do} \\
+\quad \textbf{if } drug\_name.endswith(suffix) \textbf{ then} \\
+\quad \quad \textbf{return } drug\_name[0 : |drug\_name| - |suffix|] \\
+\quad \textbf{end if} \\
+\textbf{end for} \\
+\\
+\text{// 未匹配任何后缀，返回原名称} \\
+\textbf{return } drug\_name \\
+\\
+\hline
+\textbf{时间复杂度: } O(k \cdot m) \text{，其中 } k = |DRUG\_SUFFIX\_LIST| \approx 19, m = avg(|suffix|) \approx 3 \\
+\quad \text{实际约为 } O(1) \text{ 常数时间} \\
+\textbf{空间复杂度: } O(1) \\
+\hline
+\end{array}
+$$
+
+**Python实现：**
+
 ```python
 DRUG_SUFFIX_LIST = [
     '片', '胶囊', '颗粒', '注射液', '软膏', '滴眼液',
@@ -403,7 +454,86 @@ GET /drugs/_search
 }
 ```
 
-**匹配策略：**
+**匹配策略流程图：**
+
+```mermaid
+graph TB
+    A["输入<br/>entity_name<br/>entity_type"] --> B["加载同义词库<br/>synonym_db"]
+
+    B --> C{entity_name<br/>∈ synonym_db?}
+
+    C -->|是| D["返回entity_name<br/>已是标准名称"]
+
+    C -->|否| E["遍历synonym_db"]
+
+    E --> F{entity_name<br/>∈ synonym_list?}
+
+    F -->|是| G["返回standard_name<br/>匹配到同义词"]
+
+    F -->|否| H{entity_type<br/>= disease?}
+
+    H -->|是| I["查询罕见病代码库"]
+    I --> J{entity_name<br/>∈ codes?}
+    J -->|是| K["返回standard_name<br/>匹配到代码"]
+
+    H -->|否| L["返回None<br/>未匹配"]
+    J -->|否| L
+
+    style A fill:#e1f5ff,stroke:#333,stroke-width:2px
+    style C fill:#fff9c4,stroke:#333,stroke-width:2px
+    style F fill:#fff9c4,stroke:#333,stroke-width:2px
+    style H fill:#fff9c4,stroke:#333,stroke-width:2px
+    style J fill:#fff9c4,stroke:#333,stroke-width:2px
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style K fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style L fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
+```
+
+**算法伪代码：**
+
+$$
+\begin{array}{l}
+\hline
+\textbf{Algorithm: } \text{同义词匹配} \\
+\textbf{Input: } entity\_name \text{（候选实体名称）}, entity\_type \text{（实体类型: drug/disease）} \\
+\textbf{Output: } standard\_name \text{（标准实体名称）或 None} \\
+\hline
+\\
+synonym\_db \leftarrow load\_synonym\_database(entity\_type) \\
+\\
+\text{// 方法1：直接查询（已是标准名称）} \\
+\textbf{if } entity\_name \in synonym\_db.keys() \textbf{ then} \\
+\quad \textbf{return } entity\_name \\
+\textbf{end if} \\
+\\
+\text{// 方法2：反向查询（匹配同义词）} \\
+\textbf{for each } (standard\_name, synonym\_list) \in synonym\_db \textbf{ do} \\
+\quad \textbf{if } entity\_name \in synonym\_list \textbf{ then} \\
+\quad \quad \textbf{return } standard\_name \\
+\quad \textbf{end if} \\
+\textbf{end for} \\
+\\
+\text{// 方法3：罕见病代码查询（仅针对疾病）} \\
+\textbf{if } entity\_type = \text{"disease"} \textbf{ then} \\
+\quad \textbf{for each } (standard\_name, codes) \in rare\_disease\_codes \textbf{ do} \\
+\quad \quad \textbf{if } entity\_name \in codes.values() \textbf{ then} \\
+\quad \quad \quad \textbf{return } standard\_name \\
+\quad \quad \textbf{end if} \\
+\quad \textbf{end for} \\
+\textbf{end if} \\
+\\
+\text{// 未匹配到任何同义词} \\
+\textbf{return } None \\
+\\
+\hline
+\textbf{时间复杂度: } O(n \cdot m) \text{，其中 } n = |synonym\_db|, m = avg(|synonym\_list|) \\
+\textbf{空间复杂度: } O(n \cdot m) \text{（存储同义词词表）} \\
+\hline
+\end{array}
+$$
+
+**Python实现：**
 
 ```python
 def synonym_match(entity_name: str, entity_type: str) -> Optional[str]:
@@ -440,6 +570,88 @@ def synonym_match(entity_name: str, entity_type: str) -> Optional[str]:
 **特殊处理：罕见病白名单机制**
 
 对于预设的罕见病实体库，强制优先执行级联1和级联2，禁止进入级联3的模糊匹配。
+
+**算法流程图：**
+
+```mermaid
+graph TB
+    A["输入<br/>disease_name"] --> B["级联1：精确匹配<br/>exact_match"]
+
+    B --> C{命中?}
+
+    C -->|是| D["返回标准实体<br/>match_method=exact"]
+
+    C -->|否| E["级联2：同义词匹配<br/>synonym_match"]
+
+    E --> F{命中?}
+
+    F -->|是| G["返回标准实体<br/>match_method=synonym"]
+
+    F -->|否| H{是否罕见病?}
+
+    H -->|是| I["罕见病保护<br/>禁止模糊匹配<br/>保留原名称"]
+
+    H -->|否| J["进入级联3<br/>fuzzy_match"]
+
+    I --> K["返回<br/>match_method=rare_disease_exact<br/>match_score=1.0"]
+
+    style A fill:#e1f5ff,stroke:#333,stroke-width:2px
+    style C fill:#fff9c4,stroke:#333,stroke-width:2px
+    style F fill:#fff9c4,stroke:#333,stroke-width:2px
+    style H fill:#fce4ec,stroke:#c2185b,stroke-width:3px
+    style D fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style I fill:#fff3e0,stroke:#f57c00,stroke-width:3px
+    style K fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style J fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+```
+
+**算法伪代码：**
+
+$$
+\begin{array}{l}
+\hline
+\textbf{Algorithm: } \text{带罕见病保护的匹配} \\
+\textbf{Input: } disease\_name \text{（疾病名称）} \\
+\textbf{Output: } \text{标准实体对象 或 模糊匹配结果} \\
+\textbf{Predefined: } RARE\_DISEASE\_WHITELIST \text{（罕见病白名单）} \\
+\hline
+\\
+\text{// 级联1：精确匹配} \\
+result \leftarrow exact\_match(disease\_name) \\
+\textbf{if } result \neq None \textbf{ then} \\
+\quad \textbf{return } result \\
+\textbf{end if} \\
+\\
+\text{// 级联2：同义词匹配} \\
+result \leftarrow synonym\_match(disease\_name, \text{"disease"}) \\
+\textbf{if } result \neq None \textbf{ then} \\
+\quad \textbf{return } result \\
+\textbf{end if} \\
+\\
+\text{// 罕见病保护检查} \\
+\textbf{if } disease\_name \in RARE\_DISEASE\_WHITELIST \textbf{ then} \\
+\quad \text{// 罕见病：禁止模糊匹配，保留原名称} \\
+\quad \textbf{return } \{ \\
+\quad \quad standard\_name: disease\_name, \\
+\quad \quad match\_method: \text{"rare\_disease\_exact"}, \\
+\quad \quad match\_score: 1.0, \\
+\quad \quad note: \text{"罕见病白名单保护，禁止模糊匹配"} \\
+\quad \} \\
+\textbf{end if} \\
+\\
+\text{// 非罕见病：进入级联3模糊匹配} \\
+\textbf{return } fuzzy\_match(disease\_name) \\
+\\
+\hline
+\textbf{时间复杂度: } O(n) \text{，其中 } n = |RARE\_DISEASE\_WHITELIST| \approx 7{,}000 \\
+\quad \text{实际使用哈希表优化到 } O(1) \\
+\textbf{空间复杂度: } O(n) \text{（存储罕见病白名单）} \\
+\hline
+\end{array}
+$$
+
+**Python实现：**
 
 ```python
 RARE_DISEASE_WHITELIST = [
@@ -592,7 +804,76 @@ graph TB
     style G fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
 ```
 
-**详细算法实现：**
+**算法伪代码：**
+
+$$
+\begin{array}{l}
+\hline
+\textbf{Algorithm: } \text{多因子相似度验证} \\
+\textbf{Input: } query\_name, candidate\_name, threshold \text{（默认0.85）} \\
+\textbf{Output: } bool \text{（True=接受匹配, False=拒绝匹配）} \\
+\hline
+\\
+\text{// 因子1：剔除剂型后缀} \\
+query\_clean \leftarrow remove\_suffix(query\_name) \\
+candidate\_clean \leftarrow remove\_suffix(candidate\_name) \\
+\\
+\text{// 因子2：子串包含检查} \\
+shorter \leftarrow \min(query\_clean, candidate\_clean) \text{ by length} \\
+longer \leftarrow \max(query\_clean, candidate\_clean) \text{ by length} \\
+\textbf{if } shorter \notin longer \textbf{ then} \\
+\quad \textbf{return } False \quad \text{// 拒绝：不满足子串关系} \\
+\textbf{end if} \\
+\\
+\text{// 因子3：字符顺序验证（双指针算法）} \\
+shorter\_chars \leftarrow list(shorter) \\
+longer\_chars \leftarrow list(longer) \\
+j \leftarrow 0 \quad \text{// longer的指针} \\
+\textbf{for } i \leftarrow 0 \text{ to } |shorter\_chars| - 1 \textbf{ do} \\
+\quad char \leftarrow shorter\_chars[i] \\
+\quad found \leftarrow False \\
+\quad \textbf{while } j < |longer\_chars| \textbf{ do} \\
+\quad \quad \textbf{if } longer\_chars[j] = char \textbf{ then} \\
+\quad \quad \quad found \leftarrow True \\
+\quad \quad \quad j \leftarrow j + 1 \\
+\quad \quad \quad \textbf{break} \\
+\quad \quad \textbf{end if} \\
+\quad \quad j \leftarrow j + 1 \\
+\quad \textbf{end while} \\
+\quad \textbf{if } \neg found \textbf{ then} \\
+\quad \quad \textbf{return } False \quad \text{// 拒绝：字符顺序不一致} \\
+\quad \textbf{end if} \\
+\textbf{end for} \\
+\\
+\text{// 因子4：字符集合重叠率} \\
+query\_chars \leftarrow set(query\_clean) \\
+candidate\_chars \leftarrow set(candidate\_clean) \\
+intersection \leftarrow query\_chars \cap candidate\_chars \\
+min\_set\_size \leftarrow \min(|query\_chars|, |candidate\_chars|) \\
+overlap\_ratio \leftarrow |intersection| / min\_set\_size \\
+\textbf{if } overlap\_ratio < threshold \textbf{ then} \\
+\quad \textbf{return } False \quad \text{// 拒绝：字符重叠率低于阈值} \\
+\textbf{end if} \\
+\\
+\text{// 因子5：长度比例验证} \\
+length\_ratio \leftarrow |shorter| / |longer| \\
+\textbf{if } length\_ratio < 0.6 \textbf{ then} \\
+\quad \textbf{return } False \quad \text{// 拒绝：长度差异过大} \\
+\textbf{end if} \\
+\\
+\text{// 所有因子验证通过} \\
+\textbf{return } True \\
+\\
+\hline
+\textbf{时间复杂度: } O(n \cdot m + n \cdot \log(n)) \\
+\quad \text{其中 } n = \max(|query\_clean|, |candidate\_clean|), m = |longer\_chars| \\
+\quad \text{子串检查: } O(n \cdot m), \text{ 字符顺序验证: } O(n \cdot m), \text{ 集合操作: } O(n) \\
+\textbf{空间复杂度: } O(n) \text{（存储字符集合和列表）} \\
+\hline
+\end{array}
+$$
+
+**Python实现：**
 
 ```python
 def multi_factor_similarity_validation(query_name: str,
